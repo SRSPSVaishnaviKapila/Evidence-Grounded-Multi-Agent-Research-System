@@ -1,0 +1,1923 @@
+
+--- Page 1 ---
+A Vision-Language Foundation Model to Enhance
+Efficiency of Chest X-ray Interpretation
+Zhihong Chen1,2,∗, Maya Varma1,2,3,∗, Justin Xu1,2,4, Magdalini Paschali1,2, Dave Van Veen1,5,
+Andrew Johnston2, Alaa Youssef1,2, Louis Blankemeier1,5, Christian Bluethgen1,6,
+Stephan Altmayer2, Jeya Maria Jose Valanarasu1,3, Mohamed Siddig Eltayeb Muneer2,
+Eduardo Pontes Reis1,2, Joseph Paul Cohen1, Cameron Olsen2, Tanishq Mathew Abraham7,
+Emily B. Tsai2, Christopher F. Beaulieu2, Jenia Jitsev8,9, Sergios Gatidis1,2,
+Jean-Benoit Delbrouck1,2, Akshay S. Chaudhari1,2,10, Curtis P. Langlotz1,2,10,11
+1Stanford Center for Artificial Intelligence in Medicine and Imaging, Stanford University, Palo Alto, CA, USA.
+2Department of Radiology, Stanford University, Stanford, CA, USA. 3Department of Computer Science, Stanford
+University, Stanford, CA, USA. 4Big Data Institute, University of Oxford, Oxford, UK. 5Department of Electrical
+Engineering, Stanford University, Stanford, CA, USA. 6Department of Radiology, University Hospital Zurich, Zürich,
+Switzerland. 7Stability AI, London, UK. 8Jülich Supercomputing Centre, Jülich, Germany. 9LAION, Germany.
+10Department of Biomedical Data Science, Stanford University, Stanford, CA, USA. 11Department of Medicine, Stanford
+University, Stanford, CA, USA. Corresponding to: {zhihongc,mvarma2,jbdel,akshaysc,langlotz}@stanford.edu
+Over 1.4 billion chest X-rays (CXRs) are performed annually due to their cost-effectiveness as an initial
+diagnostic test. This scale of radiological studies provides a significant opportunity to streamline CXR
+interpretation and documentation. While foundation models are a promising solution, the lack of
+publicly available large-scale datasets and benchmarks inhibits their iterative development and real-world
+evaluation. To overcome these challenges, we constructed a large-scale dataset (CheXinstruct), which
+we utilized to train a vision-language foundation model (CheXagent). We systematically demonstrated
+competitive performance across eight distinct task types on our novel evaluation benchmark (CheXbench).
+Beyond technical validation, we assessed the real-world utility of CheXagent in directly drafting radiology
+reports. Our clinical assessment with eight radiologists revealed a 36% time saving for residents using
+CheXagent-drafted reports, while attending radiologists showed no significant time difference editing
+resident-drafted or CheXagent-drafted reports. The CheXagent-drafted reports improved the writing
+efficiency of both radiology residents and attending radiologists in 81% and 61% of cases, respectively,
+without loss of quality. Overall, we demonstrate that CheXagent can effectively perform a variety of
+CXR interpretation tasks and holds potential to assist radiologists in routine clinical workflows.
+∗Equal contributions.
+arXiv:2401.12208v2  [cs.CV]  18 Dec 2024
+
+
+--- Page 2 ---
+Introduction
+Chest X-rays (CXRs) are the most frequently performed imaging tests in clinical practice due to their wide
+availability, cost-effectiveness, and low radiation doses. CXRs comprise approximately 40% of the 3.6 billion
+diagnostic X-ray examinations performed worldwide each year1–3. Physicians obtain CXRs for diverse purposes,
+including diagnosing disease, monitoring longitudinal disease progression, and verifying the placement of
+medical devices, among others. An increasing demand for imaging studies and the subsequent interpretation
+and documentation of a high volume of CXRs places a significant burden on radiologists4–6. This can lead
+to burnout and may compromise diagnostic accuracy, with an increased risk of misidentification or delayed
+reporting of relevant findings7–9.
+Machine learning (ML) methods have been proposed to automate the interpretation of CXRs10–13. Traditionally,
+ML models have been designed with the goal of addressing a single pre-defined task, such as disease
+classification12,14,15, abnormality detection16,17, visual grounding18,19, and radiology report generation20–22.
+Despite promising results, the capabilities of such task-specific models are restricted to a narrow scope by
+design. Additionally, task-specific models miss a key opportunity to leverage complementary knowledge from
+diverse tasks. For instance, consider the tasks of (1) radiology report generation, which involves generating a
+text-based radiology report given input CXR images, and (2) disease localization, which involves identifying a
+fine-grained region of interest (ROI) in a CXR for a specified disease. Although these tasks are noticeably
+distinct, training jointly on both tasks can enable a model to acquire superior capabilities, such as the ability
+to generate high-quality reports sensitive to fine-grained disease information.
+Foundation models (FMs), a powerful class of models that can be adapted for diverse tasks, have recently
+emerged as a promising solution to the aforementioned challenges23–25. In non-medical domains, FMs have
+demonstrated the ability to perform a range of complex reasoning and comprehension tasks26–28. However,
+two major barriers hinder the development of FMs for CXR interpretation: (1) a lack of curated large-scale
+training datasets that comprise diverse tasks, and (2) the limited availability of holistic evaluation benchmarks
+for assessing true performance across a broad range of capabilities. Moreover, the nascent field of CXR
+FMs29–31 has primarily focused on radiology report generation, without robust evaluation of other capabilities
+critical for effective CXR interpretation.
+Our aim in this study was to build an FM capable of performing diverse CXR interpretation and reasoning
+tasks. We first collected 32 publicly available datasets and performed extensive data engineering to curate
+CheXinstruct, a large-scale dataset for CXR interpretation. To the best of our knowledge, CheXinstruct is the
+largest publicly available collection for training CXR FMs, encompassing 8.5 million training samples across
+35 tasks. Next, we leveraged CheXinstruct to train CheXagent, a vision-language FM for CXR interpretation.
+We then introduced a comprehensive benchmark, CheXbench, for evaluating FMs on three image perception
+tasks, three image-text reasoning tasks, and two text generation tasks. CheXagent outperformed prior medical
+FMs, general domain FMs, and task-specific models across the evaluated tasks.
+To bring CXR FMs closer to clinical readiness, we conducted a reader study with eight radiologists. We
+simulated a real-world CXR interpretation workflow, in which a radiology resident first drafts an initial
+radiology report; then, an attending radiologist reviews the report for accuracy and makes necessary edits.
+Our goal is to evaluate whether using CheXagent to draft initial radiology reports can contribute to improved
+CXR interpretation efficiency. Our results showed that, in comparison to residents who wrote reports from
+scratch, residents assisted by CheXagent-drafted reports were able to achieve an average time saving of 36%.
+Additionally, we found that attending radiologists exhibited no significant time differences between editing
+CheXagent-drafted reports and editing resident-drafted reports, demonstrating the high quality nature of
+CheXagent-drafted reports. Thus, we showed that CheXagent holds potential in aiding radiologists with
+interpretation and documentation tasks in real-world clinical workflows.
+|2
+
+
+--- Page 3 ---
+MIMIC-CXR
+To discuss with professionals
+and design 35 tasks
+To collect 32 public datasets
+from existing literature
+Example Task
+(Progression Identification)
+Previous
+Current
+To inspect and preprocess
+the collected dataset
+...
+MIMIC-CXR
+CheXpert
+PadChest
+Inspect and
+preprocess
+Pairing tasks
+with source
+datasets
+Data Engineering
+Task Design
+Dataset Collection
+Data Compilation
+CheXinstruct
+Writing
+questions and
+answers
+Full Form
+Abbr.
+Classification
+Cls.
+Matching
+Mat.
+Detection
+Det.
+Segmentation
+Seg.
+Grounding
+Grd.
+Extraction
+Ext.
+Generation
+Gen.
+Summarization
+Sum.
+Selection
+Sel.
+Explanation
+Exp.
+Inference
+Inf.
+Similarity
+Sim.
+Coarse-grained
+Image Perception
+(View Matching)
+Q:“Decide if the two 
+images come from the 
+same study.”
+A:“No”
+Input 1
+Input 2
+a
+c
+d
+e
+Number
+Item
+32
+Source
+Dataset
+35
+Tasks
+76
+Compiled
+Datasets
+8.5M
+Samples
+CheXpert
+PadChest
+BRAX
+Candid-PTX
+…
+how it progresses
+b
+Fine-grained
+Image Perception
+(Abnormality Detection)
+Input
+Output
+Q:“Detect consolidation
+in the given image.”
+A:“<|box|> (17,40),
+(37,54) <|/box|>”
+Text Generation
+(Progression Generation)
+Q:“Write the trajectory
+of the two CXRs.”
+A:“Compared to the
+prior, …”
+Input 1
+Input 2
+Question Answering
+(Open-ended VQA)
+Q:“Where is atelectasis 
+in this image?”
+A:“Lower Left Lung”
+Input
+Miscellaneous
+(Image-Text Matching)
+Q:“Decide if it matches 
+the text : A high-density 
+shadow in the right hilar.”
+A:“Not matched”
+Input
+To compile datasets, including sample compilation, template writing, etc.
+Figure 1 | Curation of CheXinstruct. a, Identification of CXR interpretation tasks. We defined 35 tasks that users are
+likely to perform with CXR FMs. b, Source dataset collection. To create training data samples for each of our defined tasks, we
+collected 32 public datasets. c, Data engineering. We performed both manual quality control and automated data engineering to
+preprocess collected source data. d, CheXinstruct compilation. We used the preprocessed datasets to generate training samples
+for each of our 35 defined tasks. e, Overview of CheXinstruct with data statistics.
+|3
+
+
+--- Page 4 ---
+Results
+Creating CheXinstruct, CheXagent, and CheXbench
+For an FM to perform diverse CXR interpretation and reasoning tasks, it must effectively interact with diverse
+input queries. This necessitates a large and diverse training dataset with data triplets consisting of plausible
+queries (referred to as instructions), images, and desired model responses. To build such a dataset, we first
+defined a series of 35 tasks (Fig. 1a). Each task requires either (i) the ability to perceive and understand
+visual characteristics of a CXR (e.g., the view matching task, where the goal is to determine whether two
+CXR views are from the same imaging study) or (ii) the ability to make reasonable inferences and clinical
+decisions from a given CXR (e.g., open-ended visual question-answering (VQA), where the goal is to answer a
+free-form question about a provided CXR). To generate training data associated with each task, we collected 32
+publicly available source datasets (Fig. 1b). We performed extensive manual and automated data engineering
+on the source datasets to verify quality and unify their diverse structures (Fig. 1c). We then paired each
+task with various source datasets, using the engineered annotations to construct instruction-response pairs
+(Fig. 1d). The final training dataset, referred to as CheXinstruct, consists of 8.5 million data triplets, each
+with an instruction, a response, and at least one image (Fig. 1e). We note that some tasks (e.g., the findings
+summarization task) included in CheXinstruct are text-only, in which case no images are included in the
+triplet.
+We utilized CheXinstruct to train CheXagent (Fig 2), an FM that takes images and an instruction as input and
+generates a response to complete the instruction. CheXagent is composed of an image encoder for interpreting
+CXRs and a large language model for understanding and generating text. The image encoder divides each
+image into patches and computes a representation for each patch; then, the language model processes these
+patch representations alongside the instruction and generates a response. We trained CheXagent using a
+three-stage process. First, the language model was trained on clinical text (discharge summaries, radiology
+reports, clinical guidelines, and medical articles) with the goal of acquiring broad medical knowledge (Fig. 2a).
+Then, the image encoder was trained using SigLIP32, an approach that aims to learn useful representations of
+imaging findings guided by their textual descriptions. This was achieved by teaching the model to match
+correct image-text pairs while simultaneously distinguishing them from incorrect pairings. This training stage
+utilizes CXRs and their paired radiology reports (Fig. 2b) and enables the image encoder to capture semantic
+meaning within its representation space (illustrated in Fig. 2c). Finally, the image encoder and language
+model were trained jointly using the data triplets in the CheXinstruct dataset; this stage enables the model
+to learn how to respond to instructions across a variety of diverse CXR interpretation tasks (Fig. 2d).
+We developed an evaluation benchmark, CheXbench, to assess the capabilities of FMs in interpreting CXRs
+(Fig. 2e). Specifically, we evaluated the ability of FMs to understand the visual content of CXRs (image
+perception), perform complex reasoning tasks on CXRs (image-text reasoning), and generate and understand
+clinical text. For each evaluation task, we formatted the task as an instruction; then, we provided the
+instruction and corresponding image(s) as input to CheXagent and evaluated the quality of the generated
+response.
+Performance on Image Perception
+We first evaluated the ability of CheXagent to understand the visual content of CXRs (Fig. 3). We refer to
+this evaluation axis as image perception. We assessed image perception capabilities with three tasks: (1) View
+Classification, which involves classifying the imaging view of a CXR; (2) Disease Identification, which involves
+identifying key findings in a CXR; and (3) Temporal Classification, which involves classifying the progression
+of a disease between two CXR studies obtained at different times. We compared CheXagent with an open
+general-domain vision-language model (QwenVL33), two medical-domain vision-language models (LLaVA-
+Med25 and RadFM34), and a proprietary model (GPT-4V27). We formatted each task as an instruction with
+multiple choices; then, we evaluated the accuracy of each FM in generating the correct response. Our results
+demonstrated that CheXagent consistently outperformed other FMs across all three tasks.
+On the task of View Classification (Fig. 3a), CheXagent achieved an accuracy of 0.993 (95%CI=0.983-1.000)
+on MIMIC-CXR35 and 0.993 (95%CI=0.983-1.000) on CheXpert36. Among the baseline models, GPT-4V
+|4
+
+
+--- Page 5 ---
+Time
+CXR
+Acquisition
+Admission
+Discharge
+CXR
+Acquisition
+Identify the view of 
+this CXR.
+(A) AP
+(B) PA
+(C) Lateral
+Temporal
+Classification
+Phrase
+Grounding
+Findings
+Summarization
+Findings
+Generation
+Visual Question
+Answering
+Fine-grained
+Reasoning
+Disease
+Identification
+View
+Classification
+Task
+Image
+Perception
+Image-Text
+Reasoning
+Text
+Generation
+Text
+Generation
+Image-Text
+Reasoning
+Image-Text
+Reasoning
+Image
+Perception
+Image
+Perception
+Type
+62
+149
+1,394
+2,451
+238
+380
+2,684
+600
+Number
+e
+Overview of Evaluation Pipeline
+View
+Classification
+Identify the disease.
+(A) Pneumothorax
+(B) Pneumonia
+(C) Pleural Effusion
+Which side is the finding?
+(A) Right Pleural Effusion
+(B) Left Pleural Effusion
+Is there any spinal 
+pathology?
+(A) Yes
+(B) No
+Write its Findings section.
+Moderate cardiomegaly. Moderate 
+left pleural effusion with adjacent 
+compressive atelectasis. No focal 
+opacity. ...
+Write its Impression
+section.
+Moderate left 
+pleural effusion. 
+Locate the following:
+Moderate left pleural 
+effusion
+(132, 32) (242, 132)
+Given two CXRs, decide 
+if pleural effusion
+(A) has improved
+(B) is stable 
+(C) has worsened.
+Disease
+Identification
+Fine-grained
+Reasoning
+Visual Question
+Answering
+Findings
+Generation
+Findings
+Summarization
+Phrase
+Grounding
+Temporal
+Classification
+Image Encoder
+Image Encoder
+“Pleural effusion is presented.”
+Mapping
+Vision Space
+Language
+Space
+Language Model
+Next Word Prediction
+Text
+Example Text
+“A pleural effusion is accumulation of 
+excessive fluid in the pleural space.”
+Discharge
+Summary
+Medical
+Wikipedia
+Radiology
+Reports
+PubMed
+Articles
+General
+Text
+Text Corpus
+...
+Sample
+Language Model (Continued) Pre-training
+Instruction Tuning
+Encoding
+Encoding
+Illustration
+Training Process
+Vision Space
+(pleural effusion)
+Encoding
+After Training
+Vision Space
+(Normal)
+Encoding
+Image 1
+Image-Text Pairs
+CheXinstruct
+Image-Text Pairs
++
+Extract
+Image 2
+Language Encoder
+Language Encoder
+Text 1
+Text 2
+“Pleural effusion is present.”
+“There is no pleural effusion.”
+Vision-Language Pre-training
+Pull Closer
+Push Away
+Sample
+Sample
+Image-Instruction-Answer Triplets
+CheXinstruct
+Image-Instruction-Answer Triplets
++
+Extract
+a
+b
+d
+c
+Image Encoder
+Language Model
+Instruction 1
+Instruction n
+Image
+Image
+Answer 1
+Answer n
+Sample
+Trained to predict
+Figure 2 | Training and evaluating CheXagent. a, To develop CheXagent, we first trained a language model on clinical
+text. b, We then trained an image encoder to learn useful visual representations of imaging findings by leveraging paired
+text. c, This procedure enabled the visual encoder to capture semantic meaning with respect to key findings within its latent
+representation space. d, Finally, we jointly trained the image encoder and language model on data triplets from CheXinstruct,
+providing CheXagent with the capability to respond to user instructions. e, We constructed eight evaluation tasks to assess
+image perception, reasoning, and text generation capabilities.
+|5
+
+
+--- Page 6 ---
+a
+MIMIC-CXR
+CheXpert
+Accuracy
+View Classification
+Accuracy
+AP
+PA
+Lateral
+Data Examples
+GPT-4V
+CheXagent
+Accuracy
+MS-CXR-T
+Temporal Classification
+Disease
+Consolidation
+Edema
+Pleural Effusion
+Pneumonia
+Pneumothorax
+Previous
+Current
+Case Study (Prediction)
+CheXagent
+Pneumonia
+Worsening
+SIIM (Binary)
+RSNA (Binary)
+CheXpert (Binary)
+OpenI (Single)
+MIMIC-CXR (Single)
+CheXpert (Single)
+OpenI (Multi)
+MIMIC-CXR (Multi)
+CheXpert (Multi)
+Disease Identification
+Accuracy
+Accuracy
+Accuracy
+What’s the finding in
+this CXR study?
+(A) Pneumothorax
+(B) Pneumonia
+(C) Pleural Effusion
+(D) Consolidation
+Is pneumothorax
+present?
+(A) Yes
+(B) No
+What are the finding
+in this CXR study?
+(A) Pneumothorax,
+Pneumonia
+…
+(D) Pneumonia,
+Pleural Effusion
+Instruction Example
+Binary Disease
+Classification
+Single Disease
+Identification
+Multiple Disease
+Identification
+Disease
+Atelectasis
+Cardiomegaly
+Consolidation
+…
+Fracture
+Pneumothorax
+Pneumonia
+Disease
+Atherosclerosis
+Calcinosis
+Scoliosis
+…
+Calcified Granuloma
+Granulomatous disease
+Opacity
+MIMIC-CXR/CheXpert
+OpenI (Unseen)
+c
+b
+QwenVL
+LLaVA-Med
+RadFM
+GPT-4V
+CheXagent
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+Figure 3 | Technical evaluation on image perception tasks. a, Performance of FMs on view classification. Bar graphs
+show mean accuracy with 95% confidence intervals. Confusion matrices compare predictions of CheXagent and GPT-4V. b,
+Performance of FMs on disease identification with three subtasks. Bar graphs show mean accuracy with 95% confidence intervals.
+Evaluations on OpenI, which was unseen during CheXagent training, assess generalization capabilities. c, Performance of FMs
+on temporal classification. The bar graph shows mean accuracy with 95% confidence intervals. We provide one example of a
+prediction generated by CheXagent on the temporal classification task.
+|6
+
+
+--- Page 7 ---
+performed the best with accuracies of 0.847 (95%CI=0.807-0.887) on MIMIC-CXR and 0.797 (95%CI=0.750-
+0.840) on CheXpert. The confusion matrix indicated that while GPT-4V can distinguish front and lateral
+views well, it struggles to differentiate between AP and PA frontal views.
+On the task of Disease Identification (Fig. 3b), we evaluated models using three subtasks: (1) Binary Disease
+Classification, which involves identifying the presence or absence of a finding; (2) Single Disease Identification,
+which involves identifying a single finding present in a CXR given four options; and (3) Multiple Disease
+Identification, which involves identifying a set of multiple findings present in a CXR given four options. On
+the subtask of Binary Disease Classification, CheXagent achieved an accuracy of 0.870 (95%CI=0.800-0.930)
+for pneumothorax recognition on the SIIM37 dataset, 0.790 (95%CI=0.710-0.860) for pneumonia recognition
+on the RSNA38 dataset, and 0.785 (95%CI=0.734-0.841) for various diseases on the CheXpert dataset36. On
+the subtask of Single Disease Identification, CheXagent achieved an accuracy of 0.710 (95%CI=0.672-0.750)
+on the OpenI39 dataset, 0.569 (95%CI=0.497-0.636) on the MIMIC-CXR35 dataset, and 0.686 (95%CI=0.621-
+0.751) on the CheXpert dataset. On the subtask of Multiple Disease Identification, CheXagent achieved
+promising performance with accuracies of 0.800 (95%CI=0.773-0.827), 0.903 (95%CI=0.870-0.933), and 0.829
+(95%CI=0.782-0.868) on OpenI, MIMIC-CXR, and CheXpert, respectively. Notably, the OpenI dataset was
+entirely held out during the training of CheXagent. As demonstrated in Fig. 3b, OpenI has a labeling scheme
+that differs from MIMIC-CXR and CheXpert, providing evidence that CheXagent effectively generalizes to
+out-of-distribution images and disease labels.
+On the task of Temporal Classification (Fig. 3c), CheXagent achieved an accuracy of 0.694 (95%CI=0.565-
+0.790) on MS-CXR-T40, outperforming the other evaluated FMs (0.387 (95%CI=0.258-0.500) for QwenVL
+and 0.419 (95%CI=0.306-0.548) for GPT-4V). In Fig. 3c, we provided an example demonstrating CheXagent’s
+assessment of pneumonia progression. Our results demonstrate the ability of CheXagent to process multiple
+CXR studies and understand temporal patterns.
+Performance on Image-Text Reasoning
+Next, we evaluated the ability of CheXagent to perform joint reasoning over images and text. We refer to this
+evaluation axis as image-text reasoning. We assessed image-text reasoning capabilities with three tasks: (1)
+Fine-Grained Reasoning, which evaluates the ability of a model to differentiate between two subtly different
+findings; (2) Visual Question Answering, which involves answering open-ended free-form questions about the
+content of a CXR; and (3) Phrase Grounding, which involves localizing the region in a CXR corresponding to
+a specific sentence from a radiology report. For Fine-Grained Reasoning and Visual Question Answering, we
+formatted the task as an instruction with multiple choices and evaluated the accuracy of FMs in generating
+the correct response. For Phrase Grounding, we evaluated the accuracy of bounding box coordinates generated
+by the FM in its response. Our results demonstrated that CheXagent consistently outperforms other FMs
+and task-specific models.
+On the task of Fine-Grained Reasoning (Fig. 4a), we evaluated the ability of models to differentiate whether
+a finding is (1) located on the left or right side of the body (side), (2) located on the lower or upper region
+of the lung (region), and (3) mild or severe in presentation (severity). CheXagent achieved an accuracy of
+0.788 (95%CI=0.737-0.836) on the side subtask, 0.793 (95%CI=0.655-0.931) on the region subtask, and 0.776
+(95%CI=0.672-0.879) on the severity subtask. We note that the OpenI dataset was held out from training,
+and CheXagent was not specifically optimized for this task; this demonstrates the generalization capabilities
+of CheXagent.
+On the task of Visual Question Answering (VQA) (Fig. 4b), we evaluated models on VQA samples derived
+from the SLAKE41 and RadRestruct42 datasets, with the latter held out during training.
+CheXagent
+outperformed the baseline models, achieving an accuracy of 0.967 (95%CI=0.935-0.992) on SLAKE and 0.687
+(95%CI=0.600-0.774) on RadRestruct.
+On the task of Phrase Grounding (Fig. 4c), CheXagent achieved a mean intersection over union (mIOU)
+score of 0.627 and a mean average precision (mAP) score of 0.810, outperforming four previously-developed
+approaches: two zero-shot contrastive models (BioViL43 and CheXzero15), one single-task supervised visual
+grounding model (TransVG44), and one multi-task supervised model (ChEX19). In particular, we note that
+CheXagent outperformed task-specific models on Phrase Grounding, suggesting that CheXagent effectively
+|7
+
+
+--- Page 8 ---
+Severity
+Region
+Side
+Task
+Severe
+Mild
+Upper
+Lower
+Right
+Left
+Type
+27
+31
+10
+19
+157
+136
+Number
+VQA
+Fine-grained Reasoning
+SLAKE
+RadRestruct
+OpenI (Side)
+OpenI (Region)
+OpenI (severity)
+Accuracy
+Accuracy
+Accuracy
+QwenVL
+LLaVA-Med
+RadFM
+GPT-4V
+CheXagent
+CheXagent
+ChEX
+TransVG
+(CheXzero)
+TransVG
+(BioViL)
+CheXzero
+BioViL
+Model
+62.70
+47.52
+53.51
+52.13
+15.45
+28.57
+mIOU
+81.02
+44.47
+44.05
+41.24
+5.94
+18.62
+mAP
+Phrase Grounding
+“Cardiac silhouette is mildly
+enlarged.”
+“Moderate right pneumothorax.”
+“Opacities, consistent with 
+consolidation, are present 
+in the left lower lung.”
+“Patchy consolidation in the 
+mid left lung.”
+Ground-Truth
+Prediction
+b
+c
+a
+Case Study
+Is pneumothorax present?
+(A) Yes
+(B) No
+Where is pneumothorax 
+present in this CXR?
+(A) Left lung
+(B) Right lung
+Where is pneumothorax 
+present in this CXR?
+(A) Upper lung
+(B) Lower lung
+Relation to Other Tasks
+IOU
+*
+*
+*
+*
+*
+Figure 4 | Technical evaluation on image-text reasoning tasks. a, Performance of FMs on fine-grained reasoning. We
+provide the number of samples included in each subtask. Bar graphs show mean accuracy with 95% confidence intervals. b,
+Performance of FMs on visual question-answering (VQA). Bar graphs show mean accuracy with 95% confidence intervals. c,
+Performance on phrase grounding. We report mean intersection over union (mIOU) and mean average precision (mAP) scores.
+The box plot shows the distribution of IOU scores for CheXgaent. We also provide several examples comparing bounding boxes
+predicted by CheXagent to ground truth localizations. Lastly, we provide an example that relates the task of phrase grounding
+to VQA; users can iteratively ask questions to CheXagent in order to roughly ground findings in an image.
+learned complementary knowledge from the diverse CheXinstruct tasks.
+|8
+
+
+--- Page 9 ---
+CheXagent
+Findings Section
+CheXbert F1
+BertScore
+RadGraph F1
+Input
+Model
+Output
+Evaluation
+MedFlamingo
+LLaVA-Med
+RadFM
+XrayGPT
+CheXagent
+Findings Generation
+GPT-4V
+MAIRA-1
+Med-PaLM-M 
+(12B)
+Med-PaLM-M 
+(84B)
+Med-PaLM-M 
+(562B)
+CheXagent
+LLaMA
+Vicuna
+FLAN-T5-XL
+FLAN-UL2
+CheXagent
+Summarization
+a
+b
+c
+CheXpert
+CheXpert
+MIMIC-CXR
+MIMIC-CXR
+MIMIC-CXR
+CheXpert
+MIMIC-CXR
+MIMIC-CXR
+MIMIC-CXR
+MIMIC-CXR
+MIMIC-CXR
+Findings Generation (comparison w/ proprietary models)
+CheXbert-F1
+BERTScore
+RadGraph-F1
+CheXbert-F1
+BERTScore
+RadGraph-F1
+CheXbert-F1 (Macro 14)
+CheXbert-F1 (Macro 5)
+CheXbert-F1 (Micro 14)
+CheXbert-F1 (Micro 5)
+ROUGE-L
+*
+*
+*
+*
+*
+*
+Figure 5 | Technical evaluation of text generation tasks. a, Comparisons of CheXagent with publicly-available medical
+FMs on findings generation. We evaluate across two datasets (MIMIC-CXR and CheXpert). Bar graphs show mean CheXbert-F1,
+BERTScore, and RadGraph-F1 scores with 95% confidence intervals. b, Comparisons of CheXagent with proprietary FMs on
+findings generation. We evaluate on the MIMIC-CXR dataset. Bar graphs show mean CheXbert-F1 scores, with 95% confidence
+intervals reported for CheXagent. c, Performance of large language models on findings summarization. The bar graph shows
+mean ROUGE-L scores, with 95% confidence intervals reported for CheXagent.
+Performance on Text Generation
+We evaluated the ability of CheXagent to generate and understand clinical text (Fig. 5) with two tasks: (1)
+Findings Generation, which involves generating the Findings section of a radiology report given at least one
+CXR, and (2) Findings Summarization, which involves generating the Impressions section of a radiology report
+|9
+
+
+--- Page 10 ---
+given the Findings section. We compared CheXagent with a variety of FMs, including publicly available and
+proprietary models. Our results demonstrate that CheXagent achieves competitive performance.
+On the task of Findings Generation, we evaluated models on two datasets (MIMIC-CXR35 and CheXpert36)
+using three evaluation metrics (CheXbert-F145, BERTScore46, and RadGraph-F147,48). CheXagent achieved
+superior performance compared to publicly available baselines, attaining a CheXbert-F145 score of 0.403
+(95%CI=0.356-0.448), a BERTScore46 score of 0.491 (95%CI=0.475-0.507), and a RadGraph-F147,48 score of
+0.288 (95%CI=0.266-0.310) on the CheXpert dataset, and a CheXbert-F1 score of 0.444 (95%CI=0.428-0.460),
+a BERTScore of 0.488 (95%CI=0.484-0.493), and a RadGraph-F1 score of 0.266 (95%CI=0.260-0.272) on the
+MIMIC-CXR dataset(Fig. 5a). Additionally, we compared CheXagent with proprietary models, including
+MAIRA-130, Med-PaLM-M49, and GPT-4V27, using the CheXbert-F1 metric. We observed that CheXagent
+outperformed proprietary models in all four variants of the CheXbert-F1 score (Fig. 5b).
+On the task of Findings Summarization, CheXagent achieved performance competitive with baseline models
+(LLaMA26, Vicuna50, FLAN-T5-XL51, and FLAN-UL251), achieving a ROUGE-L score (a classic text
+summarization metric) of 0.450 (95%CI=0.435-0.465).
+This demonstrated the ability of CheXagent to
+effectively perform text-only tasks (Fig. 5c).
+Clinical Evaluation: Reader Study
+We evaluated the utility of CheXagent in clinical settings by conducting a reader study. In clinical workflows
+in academic practice, the process of interpreting a CXR study typically involves two steps. First, a radiology
+resident interprets the provided CXR study and drafts an initial radiology report; then, an attending radiologist
+reviews the report for accuracy and make any necessary edits (Fig. 6a).
+Our reader study focused on the role of CheXagent in drafting initial radiology reports (Fig. 6a and b). We
+quantitatively assessed (1) whether using CheXagent-drafted reports improves radiologist efficiency and (2)
+whether CheXagent-drafted reports accurately address the reason for the exam (exam indication). Additionally,
+we collected feedback from readers with respect to (1) the quality of the CheXagent-drafted reports and (2)
+the effects of CheXagent-drafted reports on radiologist efficiency. Eight radiologists, including four resident
+radiologists and four attending radiologists, participated in our reader study.
+We first quantitatively evaluated whether CheXagent-drafted reports improve radiologist efficiency. We
+compared the time for radiology residents to edit a CheXagent-drafted report with the time to draft an initial
+radiology report from scratch (Fig. 6c). Across four radiology residents, we observed significant time savings
+when using CheXagent-drafted reports (99.9 ± 97.3 seconds vs. 156.4 ± 115.9 seconds; p < 0.0001). We then
+compared whether the time taken for attending radiologists to review and edit a CheXagent-drafted report‡
+was similar to the time to review and edit a resident-drafted report. Across four attending radiologists, we
+observed that the elapsed times were comparable (79.7 ± 54.6 seconds vs. 83.0 ± 36.3 seconds; p > 0.1).
+Next, we quantitatively evaluated the effectiveness of CheXagent-drafted reports in addressing the exam
+indication (Fig. 6d).
+Radiology residents largely agreed that reports drafted by CheXagent accurately
+addressed the exam indication, with a rating of 5.25 ± 5.96 on a 5-point Likert scale weighted between -10
+and 10. Attending radiologists found that both resident-drafted and CheXagent-drafted reports addressed the
+exam indication, with mean ratings of 5.63 ± 5.38 and 4.56 ± 5.87, respectively; here, no significant difference
+was observed (p > 0.1), demonstrating the high quality of CheXagent-drafted reports. We then computed
+agreement ratios, defined as the proportion of cases where the reader ‘agrees’ or ‘strongly agrees’ that the
+drafted report answers the exam indication. We observed agreement ratios of 0.788 for radiology residents and
+0.738 for attending radiologists when rating CheXagent-drafted reports. We also demonstrated the reliability
+of scores across readers in the study, with moderate to high interrater correlation coefficients (ICC).
+We collected feedback from readers with respect to the quality of the CheXagent-drafted reports; in particular,
+we asked readers to provide their reasons for any edits made to the CheXagent-drafted reports. We found that
+52.5% of reports were modified by residents due to the report content, such as missing or false predictions and
+misassessment of finding severities. 32.5% of reports were edited due to style. The corresponding numbers for
+attending radiologists are 51.3% and 27.5% for report content and style, respectively.
+‡Here, the report was drafted by CheXagent only and not reviewed or modified by radiology residents.
+|10
+
+
+--- Page 11 ---
+c
+e
+d
+The drafted report answers the exam indication…
+Reader Study Interface
+b
+1. DICOM
+2. Write/Edit Report
+Exam Indication:
+Report:
+Edit:
+SUBMIT
+3. Feedback
+Choose an option…
+Choose an option…
+Enter comments here…
+Strongly Disagree
+Strongly Agree
+Time to Write/Edit by Radiology Residents
+Time to Edit by Attending Radiologists
+Editing Drafts by 
+CheXagent
+Writing from 
+Scratch
+Does the drafted report improve writing or interpretation efficiency?
+Attendings rating 
+CheXagent
+Attendings rating 
+Residents
+Residents rating 
+CheXagent
+Yes (Writing)
+Yes (Both)
+No
+Clinical Practice
+Reader Study
+Editing Drafts by 
+CheXagent
+Editing Drafts 
+by Residents
+write reports for review and editing by …
+Radiology Residents
+Radiology Residents
+write reports from scratch
+edit CheXagent-drafted reports
+edit resident-drafted reports
+edit CheXagent-drafted reports
+Attending Radiologists
+Time to final report (writing or editing)
+Reasons for editing
+Applicability to exam indication
+Efficiency feedback
+a
+Attending Radiologists
+Time (in seconds)
+Time (in seconds)
+18.8%
+40.0%
+41.2%
+62.5% 
+30.0%
+7.5%
+53.8%
+7.5%
+38.7%
+Strongly 
+Disagree
+Disagree
+Neither
+Agree
+Strongly 
+Agree
+ICC
+#4
+#3
+#2
+#1
+Overall
+0.736
+4.25 ± 5.31
+4.25 ± 6.76
+4.25 ± 6.57
+8.25 ± 3.63
+5.25 ± 5.96
+Residents rating 
+CheXagent
+0.789
+4.50 ± 4.97
+2.25 ± 6.61
+6.75 ± 5.31
+4.75 ± 5.58
+4.56 ± 5.87
+Attendings rating 
+CheXagent
+0.508
+7.50 ± 6.02
+2.50 ± 6.02
+4.00 ± 3.00
+8.50 ± 3.20
+5.63 ± 5.38
+Attendings rating 
+Residents
+-10
+-5
+0
+5
+10
+*
+n.s.
+Figure 6 | Clinical reader study. a, Overview of study design. Our reader study was designed to parallel real-world academic
+clinical workflows, where radiology residents draft initial radiology reports and attending radiologists make necessary edits. In
+our study, we compared settings where radiology residents wrote reports from scratch with settings where radiology residents
+edited reports drafted by CheXagent. We also compared settings where attending radiologists edited reports written by residents
+with settings where attending radiologists edited reports drafted by CheXagent. We collected data on time required to produce a
+final report, applicability of the report to the exam indication, radiologists’ reasons for editing reports, and radiologists’ opinions
+on whether CheXagent-drafted reports helped with improving interpretation or writing efficiency. b, Reader study interface.
+For each study, readers were presented with the CXR(s) in DICOM format, exam indication, and a drafted report if applicable
+1
+○. Fields were provided to collect feedback on reasons for editing drafted reports 2
+○, applicability to exam indication 3
+○, and
+efficiency 4
+○. c, Distributions of the time (in seconds) to required to produce a final report for residents (top) and attendings
+(bottom). Asterisk (*) denotes statistical significance with a two-sided Mann-Whitney U test, P < 0.0001; n.s. denotes differences
+that are not statistically significant. d, Evaluations on whether drafted reports answer the initial exam indication. Radiologists
+score reports on a five-point Likert scale ranging from -10 to 10. e, Opinions of radiologists on whether drafted reports improved
+their report writing and/or CXR interpretation efficiency.
+|11
+
+
+--- Page 12 ---
+We also collected qualitative feedback on how CheXagent-drafted reports affected both CXR interpretation
+and report writing efficiency (Fig. 6e). Residents reported that using a CheXagent-drafted report improved
+report writing efficiency in 81.2% of cases. Residents also found that nearly half of these cases improved both
+writing and interpretation efficiency. For attending radiologists, both CheXagent-drafted and resident-drafted
+reports contributed to improved CXR interpretation efficiency in few cases (7.5% of cases for both). However,
+attending radiolgists improved report writing efficiency in over half of all cases (61.3% of cases with a
+CheXagent-drafted report and 70.0% of cases with a resident-written report). In Extended Data Fig. 1, we
+provided examples of cases by CheXagent (reviewed by radiology residents or attending radiologists) where
+(1) CheXagent contributed to improved CXR interpretation and writing efficiency (23.8% of all the cases), (2)
+CheXagent improved only writing efficiency (47.5%), and (3) CheXagent did not improve efficiency (28.8% ).
+Ultimately, the results of our reader study demonstrates that CheXagent can improve clinical workflows. In
+particular, CheXagent holds potential to serve as a copilot for radiologists to improve reporting efficiency.
+Evaluations by attending radiologists also confirmed the quality and utility of CheXagent-drafted reports.
+Discussion
+In this study, we developed and evaluated CheXagent, a vision-language FM capable of performing diverse
+CXR interpretation tasks. To train CheXagent, we curated CheXinstruct; to the best of our knowledge,
+CheXinstruct is the largest and most diverse CXR FM training dataset to date, with 8.5 million training
+data samples from 32 publicly available source datasets. Our evaluations on our novel benchmark CheXbench
+demonstrated that CheXagent is capable of (1) understanding the visual content of CXRs, (2) performing
+complex reasoning tasks on CXRs, (3) generating and understanding clinical text, and (4) aiding in real-world
+clinical settings.
+Several FMs have been introduced recently to automate CXR interpretation29,30,49, focusing predominantly
+on radiology report generation. This work aims to build a model capable of performing perception and
+reasoning tasks that extend beyond radiology report generation. To this end, our evaluations demonstrated
+that CheXagent is capable of identifying CXR imaging views, monitoring longitudinal disease progression,
+classifying diseases and critical findings, reasoning through fine-grained queries, performing visual question-
+answering, and localizing findings to corresponding image regions. Across the evaluations, we observed that
+CheXagent consistently outperforms baselines, including significantly larger FMs like GPT-4V. The strong
+performance of CheXagent across these tasks can be attributed to the use of the CheXinstruct dataset for
+model training. CheXinstruct consists of data triplets with instructions, images, and desired responses across
+35 distinct tasks; training with such a dataset enabled CheXagent to acquire diverse capabilities and perform
+any CXR interpretation task at inference time simply by framing the task as a multiple-choice or open-ended
+instruction. This represents a significant advancement in comparison to traditional task-specific approaches,
+where new models must be developed for each task of interest.
+In particular, our evaluations on CheXbench highlighted the reasoning capabilities of CheXagent.
+We
+specifically introduced the fine-grained reasoning task in CheXbench in order to evaluate the extent to which
+FMs can distinguish between subtly different findings, such as “left-sided pleural effusion” and “right-sided
+pleural effusion”. Performing this task requires the ability to perform spatial and compositional reasoning, a skill
+that is often trivial for humans but challenging for vision-language models as shown in prior works52,53. We note
+that examples of fine-grained reasoning tasks are not explicitly included in the CheXinstruct dataset, making
+this an out-of-distribution evaluation. Regardless, CheXagent demonstrated strong performance, suggesting
+that leveraging complementary knowledge from diverse tasks during training can improve performance on
+unseen tasks. CheXagent further demonstrated spatial and compositional reasoning abilities with strong
+performance on the phrase grounding task, which involves localizing a phrase or sentence to a corresponding
+region of a CXR. Whereas many existing FMs are incapable of generating bounding box coordinates for such a
+task, CheXagent yielded highly accurate bounding boxes and outperformed multiple task-specific approaches
+and FMs.
+In addition to generalizing to out-of-distribution tasks like fine-grained reasoning, CheXagent also generalized
+to out-of-distribution datasets. Recent works have suggested that medical AI models trained on data from a
+single institution often fail to generalize to data from other institutions, likely due to models overfitting to the
+|12
+
+
+--- Page 13 ---
+training distribution or relying heavily on spurious features54. In order to mitigate this issue, we designed
+CheXinstruct to incorporate 32 publicly available datasets collected from diverse countries and institutions.
+We evaluated the ability of CheXagent to generalize to out-of-distribution data by excluding samples from
+the OpenI dataset during training; OpenI, which includes a labeling schema that differs substantially from
+other datasets, was used solely for evaluation purposes in this work. Through the disease identification and
+fine-grained reasoning tasks, we demonstrated that CheXagent can effectively generalize to unseen data. On
+the task of disease identification, performance trends on OpenI closely mirrored those on MIMIC-CXR and
+CheXpert. This suggests that the diverse datasets included in CheXinstruct prevented CheXagent from
+overfitting to a single data distribution and can enable effective generalization.
+Prior works25,29 on medical FMs predominantly evaluated model quality with automated metrics. However,
+recent studies55 have suggested that automated evaluations may not be sufficient, particularly when analyzing
+complex clinical text generated by models. Rather, evaluations by expert physicians are critical for assessing
+the utility of FMs in real-world clinical environments. To this end, we conducted a reader study with eight
+radiologists in order to rigorously evaluate the utility of CheXagent in clinical settings. We demonstrated that
+using CheXagent to draft radiology reports rather than writing from scratch can contribute to significant
+efficiency benefits (36% time savings for radiology residents) while maintaining quality. Our results suggest
+that CheXagent can assist with reducing the substantial interpretation and documentation burdens placed on
+radiologists.
+Our study presents several opportunities for future work. First, CheXagent is a lightweight FM with 3.1
+billion parameters, which presents several advantages, such as fast inference time and a low GPU memory
+footprint; however, evidence in the non-medical domain has suggested that larger models tend to result in
+stronger performance. Future work can explore the effects of model scaling laws in the context of CXR
+FMs. In addition, due to the ability of CheXagent to accurately perform multiple tasks, it can serve as a
+foundation to develop an autonomous agent56–58 for robust interpretation. For instance, CheXagent could
+be further enhanced by executing self-improvement59,60 loops, iteratively improving upon the performance
+by validating its own generations or synthesizing new training data. Furthermore, there are opportunities
+to expand the scope of our clinical reader study in the future. In particular, the use of AI tools in clinical
+settings may have impacts on medical student and resident education. Future studies can evaluate how AI
+copilots with radiology report writing capabilities enhance or detract from medical education. Future clinical
+studies can also compare CheXagent-drafted reports with reports dictated by radiologists using automated
+speech recognition, rather than those typed by hand.
+Ultimately, we presented an FM capable of improving CXR interpretation efficiency while maintaining quality,
+as demonstrated by comprehensive evaluations across diverse tasks and a reader study with expert radiologists.
+Our large-scale training dataset, CheXinstruct, can enable the research and development of future FMs,
+and our proposed benchmark, CheXbench, can allow for standardized evaluation of future FMs on CXR
+interpretation tasks. Our work provides a foundation for further research into the integration and potential
+impact of FMs in clinical practice.
+|13
+
+
+--- Page 14 ---
+Figure Legends
+Figure 1
+Curation of CheXinstruct. a, Identification of CXR interpretation tasks. We defined 35 tasks that users
+are likely to perform with CXR FMs. b, Source dataset collection. To create training data samples for each of
+our defined tasks, we collected 32 public datasets. c, Data engineering. We performed both manual quality
+control and automated data engineering to preprocess collected source data. d, CheXinstruct compilation.
+We used the preprocessed datasets to generate training samples for each of our 35 defined tasks. e, Overview
+of CheXinstruct with data statistics.
+Figure 2
+Training and evaluating CheXagent. a, To develop CheXagent, we first trained a language model on
+clinical text. b, We then trained an image encoder to learn useful visual representations of imaging findings
+by leveraging paired text. c, This procedure enabled the visual encoder to capture semantic meaning with
+respect to key findings within its latent representation space. d, Finally, we jointly trained the image encoder
+and language model on data triplets from CheXinstruct, providing CheXagent with the capability to respond
+to user instructions. e, We constructed eight evaluation tasks to assess image perception, reasoning, and text
+generation capabilities.
+Figure 3
+Technical evaluation on image perception tasks. a, Performance of FMs on view classification. Bar
+graphs show mean accuracy with 95% confidence intervals. Confusion matrices compare predictions of
+CheXagent and GPT-4V. b, Performance of FMs on disease identification with three subtasks. Bar graphs
+show mean accuracy with 95% confidence intervals. Evaluations on OpenI, which was unseen during CheXagent
+training, evaluate generalization capabilities. c, Performance of FMs on temporal classification. The bar
+graph shows mean accuracy with 95% confidence intervals. We provide one example of a prediction generated
+by CheXagent on the temporal classification task.
+Figure 4
+Technical evaluation on image-text reasoning tasks. a, Performance of FMs on fine-grained reasoning.
+We provide the number of samples included in each subtask. Bar graphs show mean accuracy with 95%
+confidence intervals. b, Performance of FMs on visual question-answering (VQA). Bar graphs show mean
+accuracy with 95% confidence intervals. c, Performance on phrase grounding. We report mean intersection
+over union (mIOU) and mean average precision (mAP) scores. The box plot shows the distribution of IOU
+scores for CheXgaent. We also provide several examples comparing bounding boxes predicted by CheXagent
+to ground truth localizations. Lastly, we provide an example that relates the task of phrase grounding to
+VQA; users can iteratively ask questions to CheXagent in order to roughly ground findings in an image.
+Figure 5
+Technical evaluation of text generation tasks. a, Comparisons of CheXagent with publicly-available
+medical FMs on findings generation. We evaluate across two datasets (MIMIC-CXR and CheXpert). Bar
+graphs show mean CheXbert-F1, BERTScore, and RadGraph-F1 scores with 95% confidence intervals. b,
+Comparisons of CheXagent with proprietary FMs on findings generation. We evaluate on the MIMIC-CXR
+dataset. Bar graphs show mean CheXbert-F1 scores, with 95% confidence intervals reported for CheXagent.
+c, Performance of large language models on findings summarization. The bar graph shows mean ROUGE-L
+scores, with 95% confidence intervals reported for CheXagent.
+Figure 6
+Clinical reader study. a, Overview of study design. Our reader study was designed to parallel real-world
+academic clinical workflows, where radiology residents draft initial radiology reports and attending radiologists
+make necessary edits. In our study, we compared settings where radiology residents wrote reports from scratch
+with settings where radiology residents edited reports drafted by CheXagent. We also compared settings where
+attending radiologists edited reports written by residents with settings where attending radiologists edited
+reports drafted by CheXagent. We collected data on time required to produce a final report, applicability
+of the report to the exam indication, radiologists’ reasons for editing reports, and radiologists’ opinions on
+|14
+
+
+--- Page 15 ---
+whether CheXagent-drafted reports helped with improving interpretation or writing efficiency. b, Reader
+study interface. For each study, readers were presented with the CXR(s) in DICOM format, exam indication,
+and a drafted report if applicable 1
+○. Fields were provided to collect feedback on reasons for editing drafted
+reports 2
+○, applicability to exam indication 3
+○, and efficiency 4
+○. c, Distributions of the time (in seconds)
+to required to produce a final report for residents (top) and attendings (bottom). Asterisk (*) denotes
+statistical significance with a two-sided Mann-Whitney U test, P < 0.0001; n.s. denotes differences that are
+not statistically significant. d, Evaluations on whether drafted reports answer the initial exam indication.
+Radiologists score reports on a five-point Likert scale ranging from -10 to 10. e, Opinions of radiologists on
+whether drafted reports improved their report writing and/or CXR interpretation efficiency.
+Method
+Description of the CheXinstruct dataset
+In this section, we describe our procedure for curating CheXinstruct, a large-scale training dataset consisting
+of 8.5 million samples.
+Task Collection. An effective CXR FM must perform diverse interpretation and reasoning tasks. To this
+end, we first defined 35 tasks that users are likely to perform with CXR FMs (Fig. 1a). Broadly, each task
+requires either (i) perception capabilities (i.e., the ability to understand the visual content of a CXR) or
+(ii) reasoning capabilities (i.e., the ability to make reasonable inferences or clinical decisions from a CXR).
+The 35 defined tasks come from five categories: (1) coarse-grained image perception tasks, which require the
+ability to understand CXRs as a whole (e.g., disease classification, view classification, and view matching);
+(2) fine-grained image perception, which require the ability to understand localized features in CXRs (e.g.,
+abnormality detection, abnormality grounding, and foreign object detection); (3) text generation tasks, which
+require the ability to generate sections of radiology reports (e.g., findings generation, impression generation,
+and summarizing impressions from findings); (4) question answering tasks, which require the ability to respond
+to CXR-related questions (e.g., close-ended visual question answering (VQA), open-ended VQA, and difference
+VQA); and (5) miscellaneous tasks, which encompass other essential abilities for CXR FMs (e.g., image-text
+matching).
+Source Dataset Collection. To create training data samples for each of our 35 defined tasks, we first
+collected 32 publicly available datasets from diverse institutions: ChestXray1461, CheXpert36,62, MIMIC-
+CXR35, PadChest63, RSNA38, COVIDX-CXR-364, CXR-LT65, BRAX66, NLM-TB67, MS-CXR-T68, VinDr-
+CXR69, VinDr-PCXR70, Candid-PTX71, SIIM37, Object-CXR72, MS-CXR40, OpenI39, BIMCV-COVID1973,
+ROCO74, MIMIC-III75, VQA-RAD76, SLAKE41, MedVQA-201977, PMC-VQA78, Rad-Restruct42, MIMIC-
+CXR-VQA79, MIMIC-Diff-VQA80, RadQA81, ReXVal82, MIMIC-NLE83, RadNLI84, and RadGraph85. In
+total, we gathered 1,077,494 unique images (Fig. 1b). Each image is paired with annotations, such as text
+(e.g., radiology reports or image captions), classification labels (e.g. disease annotations), or visual grounding
+labels (e.g. bounding boxes).
+CheXinstruct Compilation. To compile the CheXinstruct dataset, we first preprocessed the source datasets
+to ensure data quality. This process includes (1) manual quality control, where we randomly inspect examples
+from each dataset and design strategies to filter out low-quality or irrelevant samples (e.g., non-CXR images
+or noisy radiology reports), and (2) automated report restructuring, where we use a proprietary model (i.e.,
+GPT-4) to impose structure on free-form radiology reports (Fig. 1c). We also unified the diverse file and
+label structures of the source datasets. Next, we generated training data samples for each of our 35 defined
+tasks, with each sample consisting of a data triplet with an image, an instruction, and the desired response
+to the instruction (Fig. 1d). For each task, we first selected source datasets with relevant annotations; for
+instance, when considering the task of disease classification, we selected datasets with disease classification
+labels. Then, for each image in the selected source dataset, we created an instruction by sampling from a list
+of ten manually-defined templates relevant for the task of interest. Instructions may be either multiple-choice
+questions, where we randomly sampled possible answer options, or open-ended queries. A response for the
+instruction was derived from the annotations associated with the image. In total, this process resulted in
+|15
+
+
+--- Page 16 ---
+8,466,352 data triplets with an instruction, at least one image, and a response (Fig. 1e). We note that some
+tasks included in CheXinstruct are text-only (e.g., findings summarization), in which case no images are
+included in the triplet. We strictly followed the official or traditional dataset splits (training, validation, and
+test) to prevent data leakage.
+Training CheXagent
+We then utilized CheXinstruct to train CheXagent, a CXR FM capable of processing images and instructions
+as input and generating free-form text responses as output. To this end, CheXagent consists of three core
+components: (1) an image encoder, which encodes images into low-dimensional features, (2) a vision-language
+projector, which projects visual features into the language representation space, and (3) a language decoder,
+which processes input instructions and visual features and generates output responses.
+We began by training a language decoder (Fig. 2a). Our goal in this stage was to create a language model
+with comprehensive medical and clinical knowledge. We adopted Phi-286, a 2.7 billion parameter decoder-only
+transformer model with 32 Transformer layers, each featuring 32 attention heads. We then trained the language
+decoder with data from four distinct sources: (1) clinical notes (e.g., discharge summary and radiology reports
+from MIMIC-IV), (2) scientific articles (e.g., PubMed Central articles), (3) Wikipedia-style text, and (4)
+general-domain text. To prevent data leakage, we excluded any studies from MIMIC-IV87 that were part of
+the validation and test sets of MIMIC-CXR. The total text corpus comprises 2,749,125,761 tokens. We used
+the causal language modeling (next-word prediction) loss to train the language decoder.
+We then trained the image encoder to learn effective visual representations of CXRs (Fig. 2b and c). We
+adopted SigLIP-Large32, a transformer88 model with 24 Transformer layers, each with 16 attention layers.
+SigLIP-Large was originally pretrained using the WebLi89 dataset. Here, we adapted this image encoder to
+the CXR domain. We first extracted image-report and image-caption pairs from the CheXinstruct dataset,
+resulting in 1,052,257 image-text pairs. We strictly adhered to the data split defined in CheXinstruct to avoid
+data leakage. We extended the input resolution of the model from 384 to 512 by interpolating the positional
+encodings. We then used the SigLIP loss function to train the image encoder using the collected image-text
+dataset.
+After individually training the language decoder and image encoder, we developed a vision-language projector
+(a two-layer multi-layer perceptron) to project the visual features to the feature dimension of the language
+decoder (i.e., from 1,024 to 2,560) (Fig. 2d). We trained this projector using the same set of 1,052,257
+image-text pairs as the image encoder, with the image encoder and language model weights frozen. CheXagent
+was trained to generate reports or captions for each input image. Subsequently, we utilized the CheXinstruct
+dataset with (instruction, image, response) triplets to train CheXagent. CheXagent was trained to generate
+output responses given the images and instructions as input. We kept the image encoder unfrozen for one
+epoch and frozen for three epochs. We used the causal language modeling (next-word prediction) loss to train
+the language decoder. We detailed the training hyperparameters in Extended Data Table 1.
+Building CheXbench
+We developed CheXbench, an evaluation benchmark for enabling systematic comparisons of FMs across 8
+clinically-relevant CXR interpretation tasks (Fig. 2e). CheXbench was structured with three evaluation axes,
+crafted to assess crucial aspects of CXR interpretation: (1) image perception, (2) image-text reasoning, and
+(3) text generation.
+Image Perception. We first evaluated the ability of FMs to understand the visual content of CXRs. We
+utilized the following three tasks, each formatted as an instruction with multiple choices:
+1. View Classification (600 samples): Given a CXR, the FM is tasked with identifying the imaging view.
+This is performed on the CheXpert (300 samples) and MIMIC-CXR (300 samples) test sets. Each
+instruction was associated with three multiple-choice options: anterior-posterior (AP), posterior-anterior
+(PA), or lateral.
+2. Temporal Classification (62 samples): Given two CXRs collected at different timepoints from a single
+patient, the FM is tasked with identifying the progression of a disease. This was performed using the
+|16
+
+
+--- Page 17 ---
+MS-CXR-T dataset. Each instruction was associated with three multiple-choice options: improved,
+stable, or worsened. We considered five diseases: consolidation, edema, pleural effusion, pneumonia, and
+pneumothorax.
+3. Disease Identification (2,684 samples): We evaluated the ability of FMs to identify key findings in CXRs
+with the following three subtasks, which differed in the format of instructions:
+• Binary Disease Classification (433 samples): Given a CXR, the FM is tasked with identifying
+whether a specific finding is present or absent in the image. We considered twelve findings from
+the CheXpert test set (annotated by expert radiologists), one finding (pneumonia) from the RSNA
+dataset, and one finding (pneumothorax) from the SIIM dataset. Each instruction was associated
+with two multiple-choice options: Yes and No.
+• Single Disease Identification (864 samples): Given a CXR, the FM is tasked with identifying a
+single finding present in the image. We considered 13 findings from the MIMIC-CXR test set, 13
+findings from the CheXpert test set (annotated by expert radiologists), and 20 findings from OpenI
+(obtained from Medical Subject Heading (MeSH) codes). Instructions were associated with four
+options, each referencing a single finding (e.g., ‘pneumonia’).
+• Multi-Disease Identification (1,387 samples): Given a CXR, the FM is tasked with identifying a
+set of multiple findings present in the image. We again considered MIMIC-CXR, CheXpert, and
+OpenI. Instructions were associated with four options, each referencing a set of multiple findings
+(e.g., “pneumonia, pleural effusion, cardiomegaly”).
+We then provided the instruction and at least one image to the FM, and computed the accuracy of each FM
+in identifying the correct multiple-choice option within the generated response. We constructed each task to
+exhibit class balance to the extent possible.
+Image-Text Reasoning. Next, we evaluated the ability of FMs to perform complex reasoning tasks on
+CXRs. We utilized the following three tasks:
+1. Fine-Grained Reasoning (380 samples): Given a CXR, the FM is tasked with differentiating between two
+subtly different findings. In contrast to single-disease classification, this task employed hard negatives,
+with each instruction associated with two challenging options distinguished by only a single word
+indicating the location or severity of a finding (e.g., “left-sided pleural effusion” vs. “right-sided pleural
+effusion”). We implemented this task using the OpenI dataset.
+2. Visual-Question Answering (238 samples): We evaluated FMs across two standard VQA benchmarks:
+SLAKE and Rad-Restruct. Both SLAKE and Rad-Restruct consist of multiple-choice questions with
+two options: Yes and No.
+3. Phrase Grounding (149 samples): Given a CXR and a phrase, the FM is tasked with localizing the
+phrase to the corresponding region in the image. We implemented this task using the MS-CXR dataset.
+For the fine-grained reasoning and VQA tasks, we utilized instructions with multiple choices; we then provided
+the instruction and a CXR to the FM, and computed the accuracy of each FM in identifying the correct
+multiple-choice option within the generated response. We constructed each task to exhibit class balance to
+the extent possible. For the phrase grounding task, we provided an open-ended instruction to the FM and
+evaluated the accuracy of the bounding box coordinates within the generated response.
+Text Generation. We evaluated the ability of FMs to generate and understand clinical text. We utilized
+the following two tasks, each formatted as an open-ended instruction:
+1. Findings Generation (2,451 samples): Given a CXR, the FM is tasked with generating the findings
+section of the radiology report, identifying critical features such as the presence of abnormalities. We
+implemented this task using the MIMIC-CXR and CheXpert datasets.
+2. Findings Summarization (1,394 samples): Given the findings section of a radiology report, the FM is
+tasked with summarizing the key observations into a concise statement, referred to as the impressions
+section. We note that this task is text-only and does not include images. We implemented this task
+using MIMIC-CXR.
+|17
+
+
+--- Page 18 ---
+We provided the instruction and a CXR to the FM, and evaluated the quality of the generated free-form
+response with standard natural language evaluation metrics.
+On the tasks of View Classification, Temporal Classification, Disease Identification, Fine-Grained Reasoning,
+and Visual-Question Answering, we compared CheXagent with one general-domain instruction-tuned FM
+(QwenVL33), two medical-domain FMs (LLaVA-Med25 and RadFM34), and one proprietary model (GPT-427).
+In Extended Data Fig. 2, we also compared CheXagent with BLIP-290, InstructBLIP91, MedFlamingo92, and
+XrayGPT29. We reported accuracy as our evaluation metric. On the task of Phrase Grounding, we compared
+CheXagent with two zero-shot contrastive models (BioVIL43 and CheXzero15), one single-task supervised
+visual grounding model (TransVG44), and one multi-task supervised model (ChEX19).
+On the task of
+Findings Generation, we compared four medical-domain FMs (MedFlamingo92, LLaVA-Med25, RadFM34, and
+XrayGPT29) and three proprietary models (GPT-4V27, Med-PaLM-M49, and MAIRA-130) using three text
+domain-specific and semantic similarity evaluation metrics (CheXbert-F1, BERTScore, and RadGraph-F1).
+On the task of Findings Summarization task, we compared CheXagent with four large language models (i.e.,
+LLaMA26, Vicuna50, FLAN-T5-XL51, and FLAN-UL251) specifically adapted to MIMIC-CXR, similar to an
+existing study55. We reported ROUGE-L93, a classic summarization metric, for this task.
+Setup of the Reader Study for Clinical Evaluation
+To complement automated quantitative evaluation, we also conducted a qualitative expert reader study to
+evaluate the potential clinical efficacy benefits of CheXagent in real-world practice. Our study mimicked the
+typical workflow seen in real-world academic radiology departments, where radiology residents draft initial
+reports and attending radiologists review for accuracy and make necessary edits. Our study evaluated the
+role of CheXagent in drafting the initial reports. In particular, we evaluated the utility of CheXagent across
+two axes: (1) efficiency (i.e., whether using CheXagent-drafted reports can improve radiologist efficiency),
+and (2) accuracy (i.e., whether CheXagent-drafted reports are high-quality in nature).
+To this end, our readers included four radiology residents and four attending radiologists. For resident
+radiologists, we considered two settings: (1) writing reports from scratch for 10 cases and (2) editing
+CheXagent-drafted reports for 20 cases. For attending radiologists, we also considered two settings: (1)
+editing resident-drafted reports for 10 cases and (2) editing CheXagent-drafted reports for 20 cases. To
+ensure a diverse selection of CXR studies, we randomly sampled 50 cases from the test set of MIMIC-CXR
+and distributed 30 cases to each reader. We deployed this reader study via a user interface created using
+Streamlit§.
+We collected the following metrics and feedback from our reader study:
+1. Time required to produce a report. We used our Streamlit application to automatically record the time
+(in seconds) taken to write a radiology report for each case. For cases where a CheXagent-drafted report
+or a resident-written report was provided to a reader, we pre-filled the submission textbox with the
+drafted report and prompted the reader to make edits. For cases where the reader was required to write
+a report from scratch, a blank textbox was provided.
+2. Applicability of report to exam indication: We asked readers to rate whether a provided draft report
+addresses the exam indication on a five-point Likert scale (weighted from -10 to 10 during analysis).
+3. Reasons for editing: We prompted readers to explain their reasoning for making edits to drafted reports.
+We offered a list of options (grouped into ‘content’ and ‘style’) that the readers could select to explain
+their reasoning for edits. The durations for providing these feedback responses were not included in the
+report generation efficiency computation described above.
+4. Efficiency feedback: We asked readers if the drafted report (either from CheXagent or residents) improved
+their efficiency in writing and/or interpretation. Readers responded with a Yes or No answer.
+Textboxes were provided to collect qualitative feedback. To avoid distracting the readers, the feedback section
+was shown only after the readers finished editing reports and clicked a submit button.
+§https://streamlit.io/
+|18
+
+
+--- Page 19 ---
+Statistics and reproducibility
+We computed 95% confidence intervals using bootstrapping with 1,000 samples with replacement for all
+CheXagent analyses. A two-sided paired t-test was used to evaluate the statistical significance of performances
+between the best and second-best models for each task. All results by CheXagent were obtained using greedy
+sampling with the beam size set to 1, ensuring reproducibility. For the clinical reader study, a two-sided
+Mann-Whitney U test was used to evaluate the statistical significance of differences between different reader
+study settings. Samples in the reader study were displayed in a random order, and the readers were blinded
+to the source of the drafted reports (either from CheXagent or radiologists).
+Data Availability
+This study utilized datasets that are publicly accessible. Those requiring Physionet access due to their terms of
+use have references provided in the manuscript. For other datasets not requiring Physionet access, researchers
+can access the original versions through manuscript references. The CheXinstruct dataset, the model weights
+of different stages, and the CheXbench evaluation benchmark will be released before publication.
+Code Availability
+The code used for experiments in this study will be made publicly available before publication. We built
+upon the open-source libraries PyTorch and Transformers. It includes the preprocessing script to curate
+CheXinstruct, the code to train CheXagent, the CheXbench evaluation scripts for existing FMs and CheXagent,
+and the interface implementation of the clinical reader study. All the models will be hosted on HuggingFace
+(https://huggingface.co/) before publication.
+Acknowledgements
+A.S.C. receives research support from the National Institutes of Health (grants - R01 HL167974, R01 AR077604,
+R01 EB002524, R01 AR079431, P41 EB027060, and contracts 75N92020C00008, 75N92020C00021); and from
+GE Healthcare, Philips, Amazon, Microsoft/OpenAI, and Stability.ai. C.B. receives research support from
+the Promedica Foundation, Chur, Switzerland. Research reported in this publication was made possible in
+part by the National Institute of Biomedical Imaging and Bioengineering (NIBIB) of the National Institutes
+of Health which supports the Medical Imaging and Data Resource Center under contracts 75N92020C00008
+and 75N92020C00021, and by grant #1R18HS028955 from the Agency for Health Research and Quality.
+Author contributions
+Z.C. and M.V. designed the study and carried out the data collection, data analysis, model construction,
+and benchmark design. Z.C., M.V., M.P., D.V.V., and J.B.D. carried out the technical model evaluation.
+A.S.C., S.G., D.V.V., Z.C., J.X., M.V., J.B.D., and C.P.L. designed the clinical reader study. J.X. and Z.C.
+implemented the reader study. J.X., Z.C., M.V., A.Y., C.O., A.J., S.A., M.S.E.M., E.P.R., E.B.T., C.B.,
+C.F.B, and S.G. carried out the reader study and interpreted the results. Z.C., M.V., J.X., M.P., D.V.V., A.Y.,
+C.B., L.B., J.M.J.V., E.P.R., J.P.C., T.M.A, J.J., J.B.D., A.S.C., and C.P.L. contributed to the technical
+discussions. All authors contributed to the drafting and revision of the manuscript. J.B.D., A.S.C., and C.P.L.
+supervised and guided the research.
+|19
+
+
+--- Page 20 ---
+References
+1.
+PAHO, W. World radiography day: Two-thirds of the world’s population has no access to diagnostic imaging. Pan American
+Health Organization (2012).
+2.
+Organization, W. H. et al. Communicating radiation risks in paediatric imaging: information to support health care
+discussions about benefit and risk (2016).
+3.
+Cid, Y. D., Macpherson, M., Gervais-Andre, L., Zhu, Y., Franco, G., Santeramo, R., Lim, C., Selby, I., Muthuswamy, K.,
+Amlani, A., et al. Development and validation of open-source deep neural networks for comprehensive chest x-ray reading:
+a retrospective, multicentre study. The Lancet Digital Health 6, e44–e57 (2024).
+4.
+Ruutiainen, A. T., Durand, D. J., Scanlon, M. H. & Itri, J. N. Increased error rates in preliminary reports issued by
+radiology residents working more than 10 consecutive hours overnight. Academic radiology 20, 305–311 (2013).
+5.
+Hanna, T. N., Shekhani, H., Lamoureux, C., Mar, H., Nicola, R., Sliker, C. & Johnson, J.-O. Emergency radiology practice
+patterns: shifts, schedules, and job satisfaction. Journal of the American College of Radiology 14, 345–352 (2017).
+6.
+Bruls, R. & Kwee, R. Workload for radiologists during on-call hours: dramatic increase in the past 15 years. Insights into
+imaging 11, 1–7 (2020).
+7.
+Bhargavan, M., Sunshine, J. H. & Schepps, B. Too few radiologists? American Journal of Roentgenology 178, 1075–1082
+(2002).
+8.
+Lyon, M., Sturgis, L., Lendermon, D., Kuchinski, A. M., Mueller, T., Loeffler, P., Xu, H. & Gibson, R. Rural ED transfers
+due to lack of radiology services. The American journal of emergency medicine 33, 1630–1634 (2015).
+9.
+Rimmer, A. Radiologist shortage leaves patient care at risk, warns royal college. BMJ: British Medical Journal (Online)
+359 (2017).
+10.
+Erickson, B. J., Korfiatis, P., Akkus, Z. & Kline, T. L. Machine learning for medical imaging. radiographics 37, 505–515
+(2017).
+11.
+McBee, M. P., Awan, O. A., Colucci, A. T., Ghobadi, C. W., Kadom, N., Kansagra, A. P., Tridandapani, S. & Auffermann,
+W. F. Deep learning in radiology. Academic radiology 25, 1472–1480 (2018).
+12.
+Rajpurkar, P., Irvin, J., Zhu, K., Yang, B., Mehta, H., Duan, T., Ding, D., Bagul, A., Langlotz, C., Shpanskaya, K., et al.
+Chexnet: Radiologist-level pneumonia detection on chest x-rays with deep learning. arXiv preprint arXiv:1711.05225 (2017).
+13.
+Isensee, F., Petersen, J., Klein, A., Zimmerer, D., Jaeger, P. F., Kohl, S., Wasserthal, J., Koehler, G., Norajitra, T.,
+Wirkert, S., et al. nnU-Net: Self-adapting Framework for U-Net-Based Medical Image Segmentation in Bildverarbeitung für
+die Medizin 2019: Algorithmen–Systeme–Anwendungen. Proceedings des Workshops vom 17. bis 19. März 2019 in Lübeck
+(2019), 22–22.
+14.
+Li, X., Thrall, J. H., Digumarthy, S. R., Kalra, M. K., Pandharipande, P. V., Zhang, B., Nitiwarangkul, C., Singh, R.,
+Khera, R. D. & Li, Q. Deep learning-enabled system for rapid pneumothorax screening on chest CT. European journal of
+radiology 120, 108692 (2019).
+15.
+Tiu, E., Talius, E., Patel, P., Langlotz, C. P., Ng, A. Y. & Rajpurkar, P. Expert-level detection of pathologies from
+unannotated chest X-ray images via self-supervised learning. Nature Biomedical Engineering 6, 1399–1406 (2022).
+16.
+Yan, K., Wang, X., Lu, L. & Summers, R. M. DeepLesion: automated mining of large-scale lesion annotations and universal
+lesion detection with deep learning. Journal of medical imaging 5, 036501–036501 (2018).
+17.
+Liu, J., Zhang, Y., Chen, J.-N., Xiao, J., Lu, Y., A Landman, B., Yuan, Y., Yuille, A., Tang, Y. & Zhou, Z. Clip-driven
+universal model for organ segmentation and tumor detection in Proceedings of the IEEE/CVF International Conference on
+Computer Vision (2023), 21152–21164.
+18.
+Chen, Z., Zhou, Y., Tran, A., Zhao, J., Wan, L., Ooi, G. S. K., Cheng, L. T.-E., Thng, C. H., Xu, X., Liu, Y., et al.
+Medical phrase grounding with region-phrase context contrastive alignment in International Conference on Medical Image
+Computing and Computer-Assisted Intervention (2023), 371–381.
+19.
+Müller, P., Kaissis, G. & Rueckert, D. ChEX: Interactive Localization and Region Description in Chest X-rays. arXiv
+preprint arXiv:2404.15770 (2024).
+20.
+Shin, H.-C., Roberts, K., Lu, L., Demner-Fushman, D., Yao, J. & Summers, R. M. Learning to read chest x-rays: Recurrent
+neural cascade model for automated image annotation in Proceedings of the IEEE conference on computer vision and
+pattern recognition (2016), 2497–2506.
+21.
+Zhang, Z., Xie, Y., Xing, F., McGough, M. & Yang, L. Mdnet: A semantically and visually interpretable medical image
+diagnosis network in Proceedings of the IEEE conference on computer vision and pattern recognition (2017), 6428–6436.
+22.
+Jing, B., Xie, P. & Xing, E. On the Automatic Generation of Medical Imaging Reports in Proceedings of the 56th Annual
+Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) (2018), 2577–2586.
+23.
+Bommasani, R., Hudson, D. A., Adeli, E., Altman, R., Arora, S., von Arx, S., Bernstein, M. S., Bohg, J., Bosselut, A.,
+Brunskill, E., et al. On the opportunities and risks of foundation models. arXiv preprint arXiv:2108.07258 (2021).
+24.
+Moor, M., Banerjee, O., Abad, Z. S. H., Krumholz, H. M., Leskovec, J., Topol, E. J. & Rajpurkar, P. Foundation models
+for generalist medical artificial intelligence. Nature 616, 259–265 (2023).
+25.
+Li, C., Wong, C., Zhang, S., Usuyama, N., Liu, H., Yang, J., Naumann, T., Poon, H. & Gao, J. Llava-med: Training a large
+language-and-vision assistant for biomedicine in one day. Advances in Neural Information Processing Systems 36 (2024).
+26.
+Touvron, H., Lavril, T., Izacard, G., Martinet, X., Lachaux, M.-A., Lacroix, T., Rozière, B., Goyal, N., Hambro, E.,
+Azhar, F., et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971 (2023).
+27.
+Achiam, J., Adler, S., Agarwal, S., Ahmad, L., Akkaya, I., Aleman, F. L., Almeida, D., Altenschmidt, J., Altman, S.,
+Anadkat, S., et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774 (2023).
+28.
+Liu, H., Li, C., Wu, Q. & Lee, Y. J. Visual instruction tuning. Advances in neural information processing systems 36
+(2024).
+29.
+Thawkar, O., Shaker, A., Mullappilly, S. S., Cholakkal, H., Anwer, R. M., Khan, S., Laaksonen, J. & Khan, F. S. Xraygpt:
+Chest radiographs summarization using medical vision-language models. arXiv preprint arXiv:2306.07971 (2023).
+30.
+Hyland, S. L., Bannur, S., Bouzid, K., Castro, D. C., Ranjit, M., Schwaighofer, A., Pérez-García, F., Salvatelli, V., Srivastav,
+S., Thieme, A., et al. MAIRA-1: A specialised large multimodal model for radiology report generation. arXiv preprint
+arXiv:2311.13668 (2023).
+|20
+
+
+--- Page 21 ---
+31.
+Chaves, J. M. Z., Huang, S.-C., Xu, Y., Xu, H., Usuyama, N., Zhang, S., Wang, F., Xie, Y., Khademi, M., Yang, Z., et al.
+Training small multimodal models to bridge biomedical competency gap: A case study in radiology imaging. arXiv preprint
+arXiv:2403.08002 (2024).
+32.
+Zhai, X., Mustafa, B., Kolesnikov, A. & Beyer, L. Sigmoid loss for language image pre-training in Proceedings of the
+IEEE/CVF International Conference on Computer Vision (2023), 11975–11986.
+33.
+Bai, J., Bai, S., Yang, S., Wang, S., Tan, S., Wang, P., Lin, J., Zhou, C. & Zhou, J. Qwen-vl: A frontier large vision-language
+model with versatile abilities. arXiv preprint arXiv:2308.12966 (2023).
+34.
+Wu, C., Zhang, X., Zhang, Y., Wang, Y. & Xie, W. Towards generalist foundation model for radiology. arXiv preprint
+arXiv:2308.02463 (2023).
+35.
+Johnson, A. E., Pollard, T. J., Greenbaum, N. R., Lungren, M. P., Deng, C.-y., Peng, Y., Lu, Z., Mark, R. G., Berkowitz,
+S. J. & Horng, S. MIMIC-CXR-JPG, a large publicly available database of labeled chest radiographs. arXiv preprint
+arXiv:1901.07042 (2019).
+36.
+Irvin, J., Rajpurkar, P., Ko, M., Yu, Y., Ciurea-Ilcus, S., Chute, C., Marklund, H., Haghgoo, B., Ball, R., Shpanskaya, K.,
+et al. Chexpert: A large chest radiograph dataset with uncertainty labels and expert comparison in Proceedings of the AAAI
+conference on artificial intelligence 33 (2019), 590–597.
+37.
+American College of Radiology. SIIM-ACR Pneumothorax Segmentation 2019. https://www.kaggle.com/competitions/siim-
+acr-pneumothorax-segmentation/data (2019).
+38.
+Shih, G., Wu, C. C., Halabi, S. S., Kohli, M. D., Prevedello, L. M., Cook, T. S., Sharma, A., Amorosa, J. K., Arteaga, V.,
+Galperin-Aizenberg, M., et al. Augmenting the national institutes of health chest radiograph dataset with expert annotations
+of possible pneumonia. Radiology: Artificial Intelligence 1, e180041 (2019).
+39.
+Demner-Fushman, D., Kohli, M. D., Rosenman, M. B., Shooshan, S. E., Rodriguez, L., Antani, S., Thoma, G. R. &
+McDonald, C. J. Preparing a collection of radiology examinations for distribution and retrieval. Journal of the American
+Medical Informatics Association 23, 304–310 (2016).
+40.
+Boecking, B., Usuyama, N., Bannur, S., Castro, D. C., Schwaighofer, A., Hyland, S., Wetscherek, M., Naumann, T., Nori, A.,
+Alvarez-Valle, J., et al. Making the most of text semantics to improve biomedical vision–language processing in European
+conference on computer vision (2022), 1–21.
+41.
+Liu, B., Zhan, L.-M., Xu, L., Ma, L., Yang, Y. & Wu, X.-M. Slake: A semantically-labeled knowledge-enhanced dataset for
+medical visual question answering in 2021 IEEE 18th International Symposium on Biomedical Imaging (ISBI) (2021),
+1650–1654.
+42.
+Pellegrini, C., Keicher, M., Özsoy, E. & Navab, N. Rad-restruct: A novel vqa benchmark and method for structured radiology
+reporting in International Conference on Medical Image Computing and Computer-Assisted Intervention (2023), 409–419.
+43.
+Bannur, S., Hyland, S., Liu, Q., Perez-Garcia, F., Ilse, M., Castro, D. C., Boecking, B., Sharma, H., Bouzid, K., Thieme, A.,
+et al. Learning to exploit temporal structure for biomedical vision-language processing in Proceedings of the IEEE/CVF
+Conference on Computer Vision and Pattern Recognition (2023), 15016–15027.
+44.
+Deng, J., Yang, Z., Chen, T., Zhou, W. & Li, H. Transvg: End-to-end visual grounding with transformers in Proceedings of
+the IEEE/CVF International Conference on Computer Vision (2021), 1769–1779.
+45.
+Miura, Y., Zhang, Y., Tsai, E., Langlotz, C. & Jurafsky, D. Improving Factual Completeness and Consistency of Image-to-
+Text Radiology Report Generation in Proceedings of the 2021 Conference of the North American Chapter of the Association
+for Computational Linguistics: Human Language Technologies (2021), 5288–5304.
+46.
+Zhang, T., Kishore, V., Wu, F., Weinberger, K. Q. & Artzi, Y. BERTScore: Evaluating Text Generation with BERT in
+International Conference on Learning Representations ().
+47.
+Yu, F., Endo, M., Krishnan, R., Pan, I., Tsai, A., Reis, E. P., Fonseca, E. K. U. N., Lee, H. M. H., Abad, Z. S. H., Ng, A. Y.,
+et al. Evaluating progress in automatic chest x-ray radiology report generation. Patterns 4 (2023).
+48.
+Delbrouck, J.-B., Chambon, P., Bluethgen, C., Tsai, E., Almusa, O. & Langlotz, C. Improving the Factual Correctness
+of Radiology Report Generation with Semantic Rewards in Findings of the Association for Computational Linguistics:
+EMNLP 2022 (2022), 4348–4360.
+49.
+Tu, T., Azizi, S., Driess, D., Schaekermann, M., Amin, M., Chang, P.-C., Carroll, A., Lau, C., Tanno, R., Ktena, I., et al.
+Towards generalist biomedical AI. NEJM AI 1, AIoa2300138 (2024).
+50.
+Chiang, W.-L., Li, Z., Lin, Z., Sheng, Y., Wu, Z., Zhang, H., Zheng, L., Zhuang, S., Zhuang, Y., Gonzalez, J. E.,
+Stoica, I. & Xing, E. P. Vicuna: An Open-Source Chatbot Impressing GPT-4 with 90%* ChatGPT Quality 2023. https:
+//lmsys.org/blog/2023-03-30-vicuna/.
+51.
+Chung, H. W., Hou, L., Longpre, S., Zoph, B., Tay, Y., Fedus, W., Li, Y., Wang, X., Dehghani, M., Brahma, S., et al.
+Scaling instruction-finetuned language models. Journal of Machine Learning Research 25, 1–53 (2024).
+52.
+Ma, Z., Hong, J., Gul, M. O., Gandhi, M., Gao, I. & Krishna, R. Crepe: Can vision-language foundation models reason
+compositionally? in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (2023),
+10910–10921.
+53.
+Wang, J., Dong, S., Zhu, Y., Zhao, W., Li, C., Luo, P., et al. Diagnosing the Compositional Knowledge of Vision Language
+Models from a Game-Theoretic View in Forty-first International Conference on Machine Learning (2024).
+54.
+Rueckel, J., Trappmann, L., Schachtner, B., Wesp, P., Hoppe, B. F., Fink, N., Ricke, J., Dinkel, J., Ingrisch, M. & Sabel,
+B. O. Impact of confounding thoracic tubes and pleural dehiscence extent on artificial intelligence pneumothorax detection
+in chest radiographs. Investigative Radiology 55, 792–798 (2020).
+55.
+Van Veen, D., Van Uden, C., Blankemeier, L., Delbrouck, J.-B., Aali, A., Bluethgen, C., Pareek, A., Polacin, M., Reis, E. P.,
+Seehofnerová, A., et al. Adapted large language models can outperform medical experts in clinical text summarization.
+Nature medicine 30, 1134–1142 (2024).
+56.
+Franklin, S. & Graesser, A. Is it an Agent, or just a Program?: A Taxonomy for Autonomous Agents in International
+workshop on agent theories, architectures, and languages (1996), 21–35.
+57.
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan, K. R. & Cao, Y. ReAct: Synergizing Reasoning and Acting in
+Language Models in The Eleventh International Conference on Learning Representations (2022).
+58.
+Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T., Cao, Y. & Narasimhan, K. Tree of thoughts: Deliberate problem solving
+with large language models. Advances in Neural Information Processing Systems 36 (2024).
+59.
+Huang, J., Gu, S., Hou, L., Wu, Y., Wang, X., Yu, H. & Han, J. Large Language Models Can Self-Improve in Proceedings
+of the 2023 Conference on Empirical Methods in Natural Language Processing (2023), 1051–1068.
+|21
+
+
+--- Page 22 ---
+60.
+Yuan, W., Pang, R. Y., Cho, K., Li, X., Sukhbaatar, S., Xu, J. & Weston, J. E. Self-Rewarding Language Models in
+Forty-first International Conference on Machine Learning (2024).
+61.
+Wang, X., Peng, Y., Lu, L., Lu, Z., Bagheri, M. & Summers, R. M. Chestx-ray8: Hospital-scale chest x-ray database and
+benchmarks on weakly-supervised classification and localization of common thorax diseases in Proceedings of the IEEE
+conference on computer vision and pattern recognition (2017), 2097–2106.
+62.
+Chambon, P., Delbrouck, J.-B., Sounack, T., Huang, S.-C., Chen, Z., Varma, M., Truong, S. Q., Chuong, C. T. &
+Langlotz, C. P. CheXpert Plus: Hundreds of Thousands of Aligned Radiology Texts, Images and Patients. arXiv preprint
+arXiv:2405.19538 (2024).
+63.
+Bustos, A., Pertusa, A., Salinas, J.-M. & De La Iglesia-Vaya, M. Padchest: A large chest x-ray image dataset with multi-label
+annotated reports. Medical image analysis 66, 101797 (2020).
+64.
+Pavlova, M., Tuinstra, T., Aboutalebi, H., Zhao, A., Gunraj, H. & Wong, A. COVIDx CXR-3: a Large-Scale, open-source
+Benchmark dataset of chest X-ray images for computer-aided COVID-19 Diagnostics. arXiv preprint arXiv:2206.03671
+(2022).
+65.
+Holste, G., Zhou, Y., Wang, S., Jaiswal, A., Lin, M., Zhuge, S., Yang, Y., Kim, D., Nguyen-Mau, T.-H., Tran, M.-T., et al.
+Towards long-tailed, multi-label disease classification from chest X-ray: Overview of the CXR-LT challenge. Medical Image
+Analysis, 103224 (2024).
+66.
+Reis, E. P., De Paiva, J. P., Da Silva, M. C., Ribeiro, G. A., Paiva, V. F., Bulgarelli, L., Lee, H. M., Santos, P. V.,
+Brito, V. M., Amaral, L. T., et al. BRAX, Brazilian labeled chest x-ray dataset. Scientific Data 9, 487 (2022).
+67.
+Jaeger, S., Candemir, S., Antani, S., Wáng, Y.-X. J., Lu, P.-X. & Thoma, G. Two public chest X-ray datasets for
+computer-aided screening of pulmonary diseases. Quantitative imaging in medicine and surgery 4, 475 (2014).
+68.
+Bannur, S., Hyland, S., Liu, Q., Perez-Garcia, F., Ilse, M., Castro, D. C., Boecking, B., Sharma, H., Bouzid, K., Thieme, A.,
+et al. Learning to exploit temporal structure for biomedical vision-language processing in Proceedings of the IEEE/CVF
+Conference on Computer Vision and Pattern Recognition (2023), 15016–15027.
+69.
+Nguyen, H. Q., Lam, K., Le, L. T., Pham, H. H., Tran, D. Q., Nguyen, D. B., Le, D. D., Pham, C. M., Tong, H. T.,
+Dinh, D. H., et al. VinDr-CXR: An open dataset of chest X-rays with radiologist’s annotations. Scientific Data 9, 429
+(2022).
+70.
+Pham, H. H., Tran, T. T. & Nguyen, H. Q. VinDr-PCXR: An open, large-scale pediatric chest X-ray dataset for interpretation
+of common thoracic diseases. PhysioNet (version 1.0. 0) 10 (2022).
+71.
+Feng, S., Azzollini, D., Kim, J. S., Jin, C.-K., Gordon, S. P., Yeoh, J., Kim, E., Han, M., Lee, A., Patel, A., et al. Curation
+of the candid-ptx dataset with free-text reports. Radiology: Artificial Intelligence 3, e210136 (2021).
+72.
+JF Healthcare. Object-CXR - Automatic detection of foreign objects on chest X-rays. https://jfhealthcare.github.io/object-
+CXR/ (2019).
+73.
+Vayá, M. D. L. I., Saborit, J. M., Montell, J. A., Pertusa, A., Bustos, A., Cazorla, M., Galant, J., Barber, X., Orozco-Beltrán,
+D., García-García, F., et al. BIMCV COVID-19+: a large annotated dataset of RX and CT images from COVID-19 patients.
+arXiv preprint arXiv:2006.01174 (2020).
+74.
+Pelka, O., Koitka, S., Rückert, J., Nensa, F. & Friedrich, C. M. Radiology objects in context (roco): a multimodal image
+dataset in Intravascular Imaging and Computer Assisted Stenting and Large-Scale Annotation of Biomedical Data and
+Expert Label Synthesis: 7th Joint International Workshop, CVII-STENT 2018 and Third International Workshop, LABELS
+2018, Held in Conjunction with MICCAI 2018, Granada, Spain, September 16, 2018, Proceedings 3 (2018), 180–189.
+75.
+Johnson, A. E., Pollard, T. J., Shen, L., Lehman, L.-w. H., Feng, M., Ghassemi, M., Moody, B., Szolovits, P., Anthony Celi,
+L. & Mark, R. G. MIMIC-III, a freely accessible critical care database. Scientific data 3, 1–9 (2016).
+76.
+Lau, J. J., Gayen, S., Ben Abacha, A. & Demner-Fushman, D. A dataset of clinically generated visual questions and answers
+about radiology images. Scientific data 5, 1–10 (2018).
+77.
+Ben Abacha, A., Hasan, S. A., Datla, V. V., Liu, J., Demner-Fushman, D. & Müller, H. VQA-Med: Overview of the Medical
+Visual Question Answering Task at ImageCLEF 2019 in Working Notes of CLEF 2019 2380 (2019).
+78.
+Zhang, X., Wu, C., Zhao, Z., Lin, W., Zhang, Y., Wang, Y. & Xie, W. Pmc-vqa: Visual instruction tuning for medical
+visual question answering. arXiv preprint arXiv:2305.10415 (2023).
+79.
+Bae, S., Kyung, D., Ryu, J., Cho, E., Lee, G., Kweon, S., Oh, J., Ji, L., Chang, E., Kim, T., et al. EHRXQA: A multi-modal
+question answering dataset for electronic health records with chest x-ray images. Advances in Neural Information Processing
+Systems 36 (2024).
+80.
+Hu, X., Gu, L., An, Q., Zhang, M., Liu, L., Kobayashi, K., Harada, T., Summers, R. M. & Zhu, Y. Expert knowledge-aware
+image difference graph representation learning for difference-aware medical visual question answering in Proceedings of the
+29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (2023), 4156–4165.
+81.
+Soni, S., Gudala, M., Pajouhi, A. & Roberts, K. Radqa: A question answering dataset to improve comprehension of
+radiology reports in Proceedings of the Thirteenth Language Resources and Evaluation Conference (2022), 6250–6259.
+82.
+Yu, F., Endo, M., Krishnan, R., Pan, I., Tsai, A., Reis, E. P., Fonseca, E. K. U. N., Lee, H. M. H., Abad, Z. S. H., Ng, A. Y.,
+et al. Evaluating progress in automatic chest x-ray radiology report generation. Patterns 4 (2023).
+83.
+Kayser, M., Emde, C., Camburu, O.-M., Parsons, G., Papiez, B. & Lukasiewicz, T. Explaining chest x-ray pathologies in
+natural language in International Conference on Medical Image Computing and Computer-Assisted Intervention (2022),
+701–713.
+84.
+Miura, Y., Zhang, Y., Tsai, E., Langlotz, C. & Jurafsky, D. Improving Factual Completeness and Consistency of Image-to-
+Text Radiology Report Generation in Proceedings of the 2021 Conference of the North American Chapter of the Association
+for Computational Linguistics: Human Language Technologies (2021), 5288–5304.
+85.
+Jain, S., Agrawal, A., Saporta, A., Truong, S., Bui, T., Chambon, P., Zhang, Y., Lungren, M. P., Ng, A. Y., Langlotz, C.,
+et al. RadGraph: Extracting Clinical Entities and Relations from Radiology Reports in Thirty-fifth Conference on Neural
+Information Processing Systems Datasets and Benchmarks Track (Round 1) (2021).
+86.
+Li, Y., Bubeck, S., Eldan, R., Del Giorno, A., Gunasekar, S. & Lee, Y. T. Textbooks are all you need ii: phi-1.5 technical
+report. arXiv preprint arXiv:2309.05463 (2023).
+87.
+Johnson, A. E., Bulgarelli, L., Shen, L., Gayles, A., Shammout, A., Horng, S., Pollard, T. J., Hao, S., Moody, B., Gow, B.,
+et al. MIMIC-IV, a freely accessible electronic health record dataset. Scientific data 10, 1 (2023).
+88.
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł. & Polosukhin, I. Attention is all
+you need. Advances in neural information processing systems 30 (2017).
+|22
+
+
+--- Page 23 ---
+89.
+Chen, X., Wang, X., Changpinyo, S., Piergiovanni, A., Padlewski, P., Salz, D., Goodman, S., Grycner, A., Mustafa, B.,
+Beyer, L., et al. PaLI: A Jointly-Scaled Multilingual Language-Image Model in The Eleventh International Conference on
+Learning Representations (2023).
+90.
+Li, J., Li, D., Savarese, S. & Hoi, S. Blip-2: Bootstrapping language-image pre-training with frozen image encoders and
+large language models in International conference on machine learning (2023), 19730–19742.
+91.
+Dai, W., Li, J., Li, D., Tiong, A., Zhao, J., Wang, W., Li, B., Fung, P. & Hoi, S. InstructBLIP: Towards General-purpose
+Vision-Language Models with Instruction Tuning in Thirty-seventh Conference on Neural Information Processing Systems
+(2023).
+92.
+Moor, M., Huang, Q., Wu, S., Yasunaga, M., Dalmia, Y., Leskovec, J., Zakka, C., Reis, E. P. & Rajpurkar, P. Med-flamingo:
+a multimodal medical few-shot learner in Machine Learning for Health (ML4H) (2023), 353–367.
+93.
+Lin, C.-Y. Rouge: A package for automatic evaluation of summaries in Text summarization branches out (2004), 74–81.
+|23
+
+
+--- Page 24 ---
+Extended Data
+Input Images
+Example 1 (Improved interpretation and writing efficiency; 23.8% of all the cases)
+Exam Indication: ___ year old man with // OG tube placement
+Report : The ET tube is in a standard position. The pacemaker leads are in a standard position. The right IJ 
+catheter tip is in the lower SVC. The NG tube tip is in the stomach. The lungs are clear. There is no 
+pneumothorax or pleural effusion. The cardiac size is normal. The sternal wires are aligned.
+Edited: The ET tube is in a standard position. The pacemaker leads are in a standard position. The right IJ 
+catheter tip is in the lower SVC. The NG tube tip is in the stomach. The lungs are clear. There is no 
+pneumothorax or pleural effusion. The cardiac size is normal. The sternal wires are aligned.
+Editing Time: 64.3s (compared to the average writing time of this radiologist: 117.6s)
+Reason for edits: No edits.
+Indication: Strong Agree
+Efficiency: Yes (improved interpretation efficiency), Yes (improved writing efficiency)
+Feedback: “In this case, it really helps with improving the interpretation as sometimes a device may be 
+hard to see if we don't look for it, so having the text with all devices and double checking make it easier.”
+Example 2 (Improved only writing efficiency; 47.5% of all the cases)
+Exam Indication: Cirrhosis, gastrointestinal bleed, questionable pneumonia.
+Report : There is a parenchymal opacity at the right lung base, likely reflecting atelectasis. Minimal 
+atelectasis is also seen at the left lung base. There is a minimal left pleural effusion. There is no 
+pulmonary edema. There is no pneumonia. There is no pneumothorax. The size of the cardiac silhouette 
+is normal.
+Edited: Streaky parenchymal opacities at the right lung base may reflect atelectasis. Minimal atelectasis 
+is also seen at the left lung base. There is a small left pleural effusion. There is no pulmonary edema. 
+There is no focal consolidation. There is no pneumothorax. The size of the cardiac silhouette is normal. 
+No acute osseous abnormality.
+Editing Time: 60.4s (compared to the average writing time of this radiologist: 101.4s)
+Reason for edits: [Style] Not written in a style that I prefer/am used to.
+Indication: Agree
+Efficiency: Yes (improved writing efficiency)
+Feedback: “The report clearly answers concern about pneumonia but is not written in a style that I 
+prefer/am used to.”
+Input Images
+Example 3 (Didn’t improve efficiency; 28.8% of all the cases)
+Exam Indication: Fever of unclear source.
+Report : There is a mild increase in interstitial markings bilaterally, particularly in the upper lobes, which 
+may be due to mild interstitial edema. No focal consolidation is seen. There is no pleural effusion or 
+pneumothorax. The cardiac and mediastinal silhouettes are stable.
+Edited: There is a mild increase in interstitial markings bilaterally, particularly in the upper lobes, which 
+may be due to mild interstitial edema versus atypical/viral infection. No focal consolidation is seen. 
+Small left pleural effusion. No pneumothorax. The cardiac and mediastinal silhouettes are normal.
+Editing Time: 91.1s (compared to the average writing time of this radiologist: 117.6s)
+Reason for edits: [Content] False report of a finding in the image.
+Indication: Agree
+Efficiency: No (did not improve efficiency)
+Feedback: “Small left pleural effusion was missed, best seen on lateral view. Opacities may reflect 
+edema or atypical infection given patient has fever.”
+Input Images
+a
+b
+c
+Extended Data Figure 1: Qualitative analysis of three cases from the reader study. Blue text represents accurate
+findings in CheXagent-drafted reports, red text represents false predictions in CheXagent-drafted reports, and green text represents
+findings missed by CheXagent. a, An example case where a radiologist found the CheXagent-drafted report to improve both
+interpretation and writing efficiencies. Here, CheXagent identified all four devices in the CXR study, enabling the radiologist to
+efficiently generate the final report. b, An example case where a radiologist found the CheXagent-drafted report to improve
+writing efficiency. Here, CheXagent accurately predicts the majority of the findings, and the radiologist reorganized and edited
+the report in his preferred style. c, An example case where a radiologist found the CheXagent-drafted report to not improve
+efficiency. Here, CheXagent missed a finding (left pleural effusion) in the CXR study.
+|24
+
+
+--- Page 25 ---
+a
+b
+BLIP-2
+InstructBLIP
+MedFlamingo
+XrayGPT
+CheXagent
+c
+MIMIC-CXR
+CheXpert
+Accuracy
+View Classification
+Accuracy
+Accuracy
+SLACK
+SIIM (Binary)
+RSNA (Binary)
+CheXpert (Binary)
+OpenI (Single)
+MIMIC-CXR (Single)
+CheXpert (Single)
+OpenI (Multi)
+MIMIC-CXR (Multi)
+CheXpert (Multi)
+Disease Identification
+Visual Question Answering
+Accuracy
+Accuracy
+Accuracy
+Accuracy
+RadRestruct
+Accuracy
+OpenI (Side)
+OpenI (Region)
+OpenI (severity)
+Fine-grained Reasoning
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+*
+d
+Extended Data Figure 2: Technical evaluation on more FMs. We compared CheXagent with BLIP-290, InstructBLIP91,
+MedFlamingo92, and XrayGPT29. a, Performance of FMs on view classification. Bar graphs show mean accuracy with 95%
+confidence intervals. b, Performance of FMs on disease identification with three subtasks. Bar graphs show mean accuracy with
+95% confidence intervals. c, Performance of FMs on visual question answering. The bar graph shows mean accuracy with 95%
+confidence intervals. d, Performance of FMs on fine-grained reasoning. Bar graphs show mean accuracy with 95% confidence
+intervals.
+|25
+
+
+--- Page 26 ---
+Configuration
+Language Model
+Vision-Language
+Instruction Tuning
+Instruction Tuning
+(Continued) Pre-training
+Pre-training
+(Vision-Language Alignment)
+ViT Init.
+-
+SigLIP-Large
+from Stage 2
+from Stage 3
+LLM Init.
+Phi-2
+-
+from Stage 1
+from Stage 3
+VL Projector init.
+-
+-
+random
+from Stage 3
+Image Resolution
+-
+5182
+5182
+5182
+ViT sequence length
+-
+1,024
+1,024
+1,024
+LLM sequence length
+4,096
+-
+4,096
+4,096
+Optimizer
+AdamW
+Optimizer hyperparameter
+β1 = 0.9, β2 = 0.98, eps = 1e −6
+Peak learning rate
+2e-5
+5e-4
+1e-4
+1e-5
+Learning rate schedule
+cosine decay
+Weight decay
+0.1
+0.2
+0.1
+0.1
+Gradient clip
+1.0
+Training epochs
+3
+20
+3
+4
+Warm-up ratios
+0.05
+0.05
+0.05
+0.05
+Global batch size
+1,024
+512
+512
+256
+Gradient Acc.
+1
+Numerical precision
+bfloat16
+DeepSpeed
+ZoRO-2
+-
+ZoRO-2
+ZoRO-3
+Extended Data Table 1: Training hyperparameters of CheXagent.
+|26

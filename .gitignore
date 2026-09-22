@@ -1,0 +1,49 @@
+# Environment variables & secrets
+.env
+*.env
+backend/.env
+
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime databases & vector store
+*.db
+*.sqlite
+*.sqlite3
+backend/research_system.db
+backend/data/vector_db/
+
+# Generated outputs & annotations (keep structure, ignore contents)
+backend/data/outputs/*
+!backend/data/outputs/.gitkeep
+backend/data/annotations/*
+!backend/data/annotations/.gitkeep
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node / frontend (if added)
+node_modules/
+dist/
+build/
