@@ -31,3 +31,4 @@ FastAPI backend providing REST endpoints, PDF processing, semantic embeddings, v
 ```bash
 pytest
 ```
+

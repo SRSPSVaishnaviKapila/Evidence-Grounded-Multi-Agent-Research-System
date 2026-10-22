@@ -1,4 +1,4 @@
-import fitz
+import pymupdf
 from pathlib import Path
 
 
@@ -7,7 +7,7 @@ def extract_text_from_pdf(pdf_path: str) -> str:
     Extract text from all pages of a PDF.
     """
 
-    document = fitz.open(pdf_path)
+    document = pymupdf.open(pdf_path)
 
     extracted_text = []
 

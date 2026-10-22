@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 from datetime import datetime
 
@@ -69,3 +69,24 @@ class LiteratureImportItem(BaseModel):
 
 class LiteratureImportRequest(BaseModel):
     papers: list[LiteratureImportItem] = Field(min_length=1, max_length=50)
+
+
+class VerificationRequest(BaseModel):
+    paper_ids: list[int] = Field(min_length=1, max_length=10)
+    verify_agent2: bool = True
+    verify_agent3: bool = True
+    verify_agent4: bool = True
+    verify_report: bool = True
+
+    @field_validator("paper_ids")
+    @classmethod
+    def require_unique_paper_ids(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("paper_ids must be unique")
+        return value
+
+    @model_validator(mode="after")
+    def require_a_verification_scope(self):
+        if not (self.verify_agent2 or self.verify_agent3 or self.verify_agent4):
+            raise ValueError("At least one agent verification scope is required")
+        return self
